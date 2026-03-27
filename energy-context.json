@@ -1,0 +1,18 @@
+[
+  {
+    "timestamp": "2026-03-27T22:00:00Z",
+    "grid_price": 0.42,
+    "weather_temperature": 31,
+    "clock_hour": 22,
+    "ev_connected": true,
+    "battery_level": 0.58
+  },
+  {
+    "timestamp": "2026-03-27T23:00:00Z",
+    "grid_price": 0.18,
+    "weather_temperature": 26,
+    "clock_hour": 23,
+    "ev_connected": true,
+    "battery_level": 0.61
+  }
+]
