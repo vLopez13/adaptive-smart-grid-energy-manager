@@ -92,6 +92,84 @@ body {
     transition: color 0.3s;
 }
 
+/* Auth Overlay */
+.auth-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.auth-box {
+    text-align: center;
+    padding: 2.5rem;
+}
+.primary-btn {
+    background-color: var(--accent-blue);
+    color: white;
+    padding: 0.8rem 1.6rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 1.5rem;
+    transition: background 0.2s;
+}
+.primary-btn:hover { background-color: #1f6feb; }
+.secondary-btn.logout {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+/* Energy Flow Centerpiece */
+.energy-flow-panel {
+    grid-column: span 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 480px;
+}
+.svg-container {
+    width: 100%;
+    max-width: 800px;
+}
+
+/* SVG Node and Path Styles */
+.node-bg { fill: rgba(255, 255, 255, 0.05); stroke: var(--border-color); stroke-width: 1.5; }
+.node text { fill: var(--text-secondary); font-size: 14px; font-weight: bold; }
+.flow-path {
+    fill: none;
+    stroke: var(--border-color);
+    stroke-width: 4;
+    stroke-linecap: round;
+    opacity: 0.2;
+    transition: all 0.5s ease;
+}
+
+/* Active Flow Animation */
+.flow-active {
+    stroke: var(--accent-blue);
+    opacity: 1;
+    stroke-dasharray: 10, 20;
+    animation: flowPulse 2s linear infinite;
+    filter: drop-shadow(0 0 5px var(--accent-blue));
+}
+.flow-charging { stroke: var(--accent-green); filter: drop-shadow(0 0 5px var(--accent-green)); }
+.flow-selling { stroke: var(--accent-yellow); filter: drop-shadow(0 0 5px var(--accent-yellow)); }
+.flow-buying { stroke: var(--accent-red); filter: drop-shadow(0 0 5px var(--accent-red)); }
+
+@keyframes flowPulse {
+    from { stroke-dashoffset: 60; }
+    to { stroke-dashoffset: 0; }
+}
+
 /* Layout Grid */
 .dashboard-grid {
     display: grid;
