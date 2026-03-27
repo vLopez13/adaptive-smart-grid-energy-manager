@@ -83,7 +83,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Remove the mock setInterval action generator from server.ts when wiring in the real Agent (US-006)"
     },
     {

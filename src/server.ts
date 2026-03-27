@@ -32,16 +32,19 @@ const lastUpdated: Record<string, number> = { clock: 0, grid_price: 0, weather_t
 simulator.on('clock', (val: string) => {
     lastClock = val;
     lastUpdated.clock = Date.now();
+    lastStreamUpdateTime = Date.now();
     streamBus.emit('event', { type: 'clock', data: val });
 });
 simulator.on('grid_price', (val: number) => {
     lastPrice = val;
     lastUpdated.grid_price = Date.now();
+    lastStreamUpdateTime = Date.now();
     streamBus.emit('event', { type: 'grid_price', data: val });
 });
 simulator.on('weather_temperature', (val: number) => {
     lastTemp = val;
     lastUpdated.weather_temperature = Date.now();
+    lastStreamUpdateTime = Date.now();
     streamBus.emit('event', { type: 'weather_temperature', data: val });
 });
 
@@ -53,6 +56,18 @@ setInterval(() => {
         }
     }
 }, 2000);
+
+// Decision timeout tracking (Req 6.6)
+let lastStreamUpdateTime = 0;
+let lastActionTime = 0;
+
+setInterval(() => {
+    if (lastStreamUpdateTime > 0 && lastActionTime < lastStreamUpdateTime) {
+        if (Date.now() - lastStreamUpdateTime > 2000) {
+            streamBus.emit('event', { type: 'decision_timeout' });
+        }
+    }
+}, 500);
 
 // ====== MOCK AGENT (removed when real Agent lands in Req 2) ======
 interface ActionItem {
@@ -73,6 +88,7 @@ setInterval(() => {
         timestamp: new Date().toLocaleTimeString(),
     };
     latestAction = newAction;
+    lastActionTime = Date.now();
     actionHistory.unshift(newAction);
     if (actionHistory.length > 20) actionHistory.pop();
     streamBus.emit('event', { type: 'action_issued', data: newAction });
