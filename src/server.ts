@@ -8,6 +8,10 @@ import { EnergyAgent } from './agent/EnergyAgent';
 import { toPreferenceGuidelines } from './agent/guidelineAdapter';
 import { resolvePostgresContextConfig, fetchLatestExternalContextSafe } from './context/postgresPublicTest';
 import { EventEmitter } from 'events';
+import type { Action } from './types/energy';
+import { ActionLogger } from './store/ActionLogger';
+import { ErrorLogger } from './store/ErrorLogger';
+import { randomUUID } from 'crypto';
 
 const app = express();
 app.use(cors());
@@ -24,6 +28,8 @@ const streamBus = new EventEmitter();
 const store = new GuidelinesStore();
 const pgCtx = resolvePostgresContextConfig();
 const agent = new EnergyAgent();
+const actionLogger = new ActionLogger();
+const errorLogger = new ErrorLogger();
 
 let lastPrice = 0;
 let lastTemp = 0;
@@ -80,6 +86,11 @@ simulator.on('tick', async (tick: TickPayload) => {
             external,
         });
 
+        const appliedIds = agent.getLastAppliedGuidelineIds();
+        for (const id of appliedIds) {
+            await store.incrementApplied(id);
+        }
+
         const newAction: ActionItem = {
             action: decision.action,
             reason: decision.reasonDetail,
@@ -91,11 +102,31 @@ simulator.on('tick', async (tick: TickPayload) => {
         actionHistory.unshift(newAction);
         if (actionHistory.length > 20) actionHistory.pop();
 
+        const guidelineIds = guidelines.map((g) => g.id);
+        const estimatedRevenue = decision.action === 'SELL_TO_GRID' ? tick.gridPrice * 10 : undefined;
+        await actionLogger.log({
+            id: randomUUID(),
+            action: decision.action,
+            clock: tick.clock,
+            gridPrice: tick.gridPrice,
+            temperature: tick.weatherTemperature,
+            estimatedRevenue,
+            activeGuidelineIds: guidelineIds,
+        });
+
         streamBus.emit('event', { type: 'action_issued', data: newAction });
         streamBus.emit('event', { type: 'history_updated', data: actionHistory });
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error('[Agent] Decision error:', message);
+        await errorLogger.log({
+            id: randomUUID(),
+            message,
+            stack: err instanceof Error ? err.stack : undefined,
+            clock: lastClock,
+            gridPrice: lastPrice,
+            temperature: lastTemp,
+        });
         streamBus.emit('event', { type: 'decision_error', message });
     }
 });
@@ -143,8 +174,23 @@ app.get('/api/stream', (req: Request, res: Response) => {
     req.on('close', () => streamBus.off('event', onEvent));
 });
 
-app.post('/api/override', (_req: Request, res: Response) => {
+app.post('/api/override', async (_req: Request, res: Response) => {
     console.log('User Override requested!');
+    const overridden = latestAction;
+
+    if (overridden) {
+        const newGuideline = agent.applyPenalty(overridden.action as Action, {
+            clock: lastClock,
+            gridPrice: lastPrice,
+            weatherTemperature: lastTemp,
+        });
+        await store.add(newGuideline);
+        guidelines.push(newGuideline);
+        agent.setGuidelines(toPreferenceGuidelines(guidelines));
+        preferencesUnavailable = false;
+        streamBus.emit('event', { type: 'guidelines_updated', data: guidelines });
+    }
+
     latestAction = null;
     streamBus.emit('event', { type: 'override_success' });
     res.json({ success: true });
