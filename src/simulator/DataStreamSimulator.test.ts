@@ -10,20 +10,22 @@ describe('DataStreamSimulator', () => {
     });
 
     test('throws if updateIntervalMs is less than 1000', () => {
-        expect(() => new DataStreamSimulator({
-            updateIntervalMs: 500,
-            timeSpeedMinutesPerUpdate: 1
-        })).toThrow();
+        expect(
+            () =>
+                new DataStreamSimulator({
+                    updateIntervalMs: 500,
+                    timeSpeedMinutesPerUpdate: 1,
+                })
+        ).toThrow();
     });
 
     test('initializes and emits values on start', () => {
         simulator = new DataStreamSimulator({
             updateIntervalMs: 1000,
             timeSpeedMinutesPerUpdate: 10,
-            startClock: "12:00"
+            startClock: '12:00',
         });
 
-        // Use mock functions to spy on emissions
         const clockSpy = jest.fn();
         const priceSpy = jest.fn();
         const tempSpy = jest.fn();
@@ -32,12 +34,11 @@ describe('DataStreamSimulator', () => {
         simulator.on('grid_price', priceSpy);
         simulator.on('weather_temperature', tempSpy);
 
-        // Start should trigger immediate emission
         simulator.start();
 
         expect(clockSpy).toHaveBeenCalledTimes(1);
-        expect(clockSpy).toHaveBeenCalledWith("12:10"); // since updateClock adds time Speed immediately on first tick in start?
-        
+        expect(clockSpy).toHaveBeenCalledWith('12:10');
+
         expect(priceSpy).toHaveBeenCalledTimes(1);
         expect(tempSpy).toHaveBeenCalledTimes(1);
 
@@ -45,19 +46,34 @@ describe('DataStreamSimulator', () => {
         const emittedTemp = tempSpy.mock.calls[0][0];
 
         expect(emittedPrice).toBeGreaterThanOrEqual(0.05);
-        expect(emittedPrice).toBeLessThanOrEqual(0.50);
+        expect(emittedPrice).toBeLessThanOrEqual(0.5);
 
         expect(emittedTemp).toBeGreaterThanOrEqual(20);
         expect(emittedTemp).toBeLessThanOrEqual(115);
     });
 
+    test('emits tick once per cycle with aligned snapshot', () => {
+        simulator = new DataStreamSimulator({
+            updateIntervalMs: 1000,
+            timeSpeedMinutesPerUpdate: 5,
+            startClock: '09:00',
+        });
+        const tickSpy = jest.fn();
+        simulator.on('tick', tickSpy);
+        simulator.start();
+        expect(tickSpy).toHaveBeenCalledTimes(1);
+        const p = tickSpy.mock.calls[0][0];
+        expect(p.clock).toBe('09:05');
+        expect(typeof p.gridPrice).toBe('number');
+        expect(typeof p.weatherTemperature).toBe('number');
+    });
+
     test('values remain within bounds over time', () => {
         simulator = new DataStreamSimulator({
             updateIntervalMs: 1000,
-            timeSpeedMinutesPerUpdate: 1
+            timeSpeedMinutesPerUpdate: 1,
         });
 
-        // We can artificially call private methods since this is JS underneath, or we can just mock timers
         jest.useFakeTimers();
 
         const priceSpy = jest.fn();
@@ -68,17 +84,15 @@ describe('DataStreamSimulator', () => {
 
         simulator.start();
 
-        // Advance by 100 intervals
         jest.advanceTimersByTime(100 * 1000);
 
         simulator.stop();
 
-        // Expect 1 + 100 calls
         expect(priceSpy).toHaveBeenCalledTimes(101);
 
         for (const call of priceSpy.mock.calls) {
             expect(call[0]).toBeGreaterThanOrEqual(0.05);
-            expect(call[0]).toBeLessThanOrEqual(0.50);
+            expect(call[0]).toBeLessThanOrEqual(0.5);
         }
 
         for (const call of tempSpy.mock.calls) {

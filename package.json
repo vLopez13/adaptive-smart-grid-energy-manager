@@ -4,15 +4,20 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
-    "start": "ts-node src/demo.ts"
+    "start": "ts-node src/demo.ts",
+    "inspect:pg": "ts-node scripts/inspect-public-test.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
+  "dependencies": {
+    "pg": "^8.20.0"
+  },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^25.5.0",
+    "@types/pg": "^8.20.0",
     "jest": "^30.3.0",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",

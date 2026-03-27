@@ -1,51 +1,52 @@
+import { EnergyAgent } from './agent/EnergyAgent';
+import { fetchLatestExternalContextSafe, resolvePostgresContextConfig } from './context/postgresPublicTest';
+import type { TickPayload } from './simulator/DataStreamSimulator';
 import { DataStreamSimulator } from './simulator/DataStreamSimulator';
 
-// Instantiate the simulator
-// We set it to update every 1 second, and each update advances the clock by 15 simulation minutes.
-// This allows us to see the clock progressing quickly.
+const SLACK_MS = 500;
+
 const simulator = new DataStreamSimulator({
     updateIntervalMs: 1000,
-    timeSpeedMinutesPerUpdate: 15, // 1 real second = 15 simulated minutes
-    startClock: "08:00"
+    timeSpeedMinutesPerUpdate: 15,
+    startClock: '08:00',
 });
 
-// We need to listen to all events to display them
-// To simulate requirement 6 (Dashboard), we just log them here.
+const agent = new EnergyAgent([]);
+const pg = resolvePostgresContextConfig();
 
-let lastClock = "";
-let lastPrice = 0;
-let lastTemp = 0;
-
-console.log("Starting Smart-Grid Environment Simulation...");
-console.log("---------------------------------------------");
-
-// Listeners
-simulator.on('clock', (val) => {
-    lastClock = val;
-    printDashboard();
-});
-
-simulator.on('grid_price', (val) => {
-    lastPrice = val;
-    // We only print on temperature to avoid 3 exact same logs per tick, since they emit together
-});
-
-simulator.on('weather_temperature', (val) => {
-    lastTemp = val;
-    // all streams emitted for this tick, print state
-    printDashboard();
-});
-
-function printDashboard() {
-    process.stdout.write(`\r[TIME: ${lastClock}] | Grid Price: $${lastPrice.toFixed(3)}/kWh | Temperature: ${lastTemp.toFixed(1)}°F   `);
+if (pg.enabled && pg.pool) {
+    console.log('Postgres context enabled (latest row from public.test).');
+} else {
+    console.log('Postgres not configured — using simulator-only context (DATABASE_URL / PG* env vars).');
 }
 
-// Ensure the process exits nicely
+console.log('Starting Smart-Grid Environment Simulation...');
+console.log('---------------------------------------------');
+
+simulator.on('tick', async (payload: TickPayload) => {
+    const t0 = Date.now();
+    const ext = await fetchLatestExternalContextSafe(pg.pool);
+    const decision = agent.decide({
+        simulator: {
+            clock: payload.clock,
+            gridPrice: payload.gridPrice,
+            weatherTemperature: payload.weatherTemperature,
+        },
+        external: ext.row,
+    });
+    const elapsed = Date.now() - t0;
+    const line = `[${payload.clock}] $${payload.gridPrice.toFixed(3)}/kWh | ${payload.weatherTemperature.toFixed(1)}°F | Action: ${decision.action} | Reason: ${decision.primaryReason} | ${decision.reasonDetail}`;
+    process.stdout.write(`\r${line.padEnd(118)}`);
+    if (elapsed > SLACK_MS) {
+        console.warn(`\n[warn] Decision + dashboard update took ${elapsed}ms (target ≤ ${SLACK_MS}ms).`);
+    }
+});
+
 process.on('SIGINT', () => {
-    console.log("\nStopping simulation...");
+    console.log('\nStopping simulation...');
     simulator.stop();
+    void pg.pool?.end();
     process.exit(0);
 });
 
-// Start the simulation
 simulator.start();

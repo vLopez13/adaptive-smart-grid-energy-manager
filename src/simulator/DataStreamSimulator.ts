@@ -1,5 +1,12 @@
 import { EventEmitter } from 'events';
 
+/** Emitted once per simulator cycle after Clock, Grid_Price, and Weather_Temperature. */
+export interface TickPayload {
+    clock: string;
+    gridPrice: number;
+    weatherTemperature: number;
+}
+
 export interface SimulatorOptions {
     /** Update interval in milliseconds. Must be strictly >= 1000 */
     updateIntervalMs: number;
@@ -66,9 +73,16 @@ export class DataStreamSimulator extends EventEmitter {
     }
 
     private emitValues(): void {
-        this.emit('clock', this.getFormattedClock());
+        const clock = this.getFormattedClock();
+        this.emit('clock', clock);
         this.emit('grid_price', this.currentGridPrice);
         this.emit('weather_temperature', this.currentTemperature);
+        const tick: TickPayload = {
+            clock,
+            gridPrice: this.currentGridPrice,
+            weatherTemperature: this.currentTemperature,
+        };
+        this.emit('tick', tick);
     }
 
     private updateClock(): void {
