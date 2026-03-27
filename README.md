@@ -2,7 +2,7 @@
 
 # Adaptive Smart-Grid Energy Manager
 
-**An autonomous home energy agent** that reads live (simulated) grid, weather, and time streams, ingests **Airbyte-synced context from Postgres**, and issues exactly **one** optimal action every cycle — sell, buy, store, discharge, HVAC, or EV — while **learning from your overrides** through persistent preference guidelines.
+**An autonomous home energy agent** that reads live (simulated) grid, weather, and time streams, ingests **Airbyte-synced context from Postgres**, and issues exactly **one** optimal action every cycle - sell, buy, store, discharge, HVAC, or EV, while **learning from your overrides** through persistent preference guidelines.
 
 <br/>
 
