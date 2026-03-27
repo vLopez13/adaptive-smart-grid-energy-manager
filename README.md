@@ -1,6 +1,6 @@
 <div align="center">
 
-# Adaptive Smart-Grid Energy Manager
+# Lumera Energy
 
 **An autonomous home energy agent** that reads live (simulated) grid, weather, and time streams, ingests **Airbyte-synced context from Postgres**, and issues exactly **one** optimal action every cycle - sell, buy, store, discharge, HVAC, or EV, while **learning from your overrides** through persistent preference guidelines.
 
