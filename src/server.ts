@@ -43,6 +43,8 @@ interface ActionItem {
     timestamp: string;
 }
 
+const MAX_GUIDELINES = 10;
+
 let latestAction: ActionItem | null = null;
 let actionHistory: ActionItem[] = [];
 
@@ -174,12 +176,19 @@ app.get('/api/stream', (req: Request, res: Response) => {
     req.on('close', () => streamBus.off('event', onEvent));
 });
 
-app.post('/api/override', async (_req: Request, res: Response) => {
+app.post('/api/override', async (req: Request<object, object, { action?: string }>, res: Response) => {
     console.log('User Override requested!');
-    const overridden = latestAction;
+    // Use the action sent by the client (what the user actually saw) to avoid
+    // the race condition where latestAction has already advanced to the next tick.
+    const actionToOverride = (req.body.action ?? latestAction?.action) as Action | undefined;
 
-    if (overridden) {
-        const newGuideline = agent.applyPenalty(overridden.action as Action, {
+    if (actionToOverride) {
+        // Enforce guideline cap: drop oldest before adding new one.
+        if (guidelines.length >= MAX_GUIDELINES) {
+            const evicted = guidelines.shift()!;
+            await store.remove(evicted.id);
+        }
+        const newGuideline = agent.applyPenalty(actionToOverride, {
             clock: lastClock,
             gridPrice: lastPrice,
             weatherTemperature: lastTemp,

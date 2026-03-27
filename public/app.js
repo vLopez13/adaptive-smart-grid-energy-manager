@@ -13,6 +13,9 @@ function startApp() {
     const guidelinesCount = document.getElementById("guidelines-count");
     const historyTbody = document.getElementById("history-tbody");
 
+    // Track the action currently shown so Override sends the right action to the server.
+    let currentActionName = null;
+
     // Connect SSE
     const evtSource = new EventSource("/api/stream");
 
@@ -98,7 +101,8 @@ function startApp() {
     }
 
     function renderLatestAction(actionItem) {
-        if (!actionItem) { clearActionPanel(); return; }
+        if (!actionItem) { currentActionName = null; clearActionPanel(); return; }
+        currentActionName = actionItem.action;
         const actionSlug = actionItem.action.toLowerCase().replace(/_/g, '-');
         latestActionContainer.className = "action-box";
         latestActionContainer.innerHTML = `
@@ -221,7 +225,13 @@ function startApp() {
 
     async function triggerOverride() {
         try {
-            await fetch('/api/override', { method: 'POST' });
+            await fetch('/api/override', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                // Send the action the user saw at click time, not whatever the server
+                // has as latestAction by the time the request lands (race condition fix).
+                body: JSON.stringify({ action: currentActionName }),
+            });
         } catch (err) {
             console.error(err);
         }
