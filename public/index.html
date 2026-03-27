@@ -8,7 +8,15 @@
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <div class="app-container">
+    <div id="auth-overlay" class="auth-overlay glass-panel">
+        <div class="auth-box">
+            <h1>Welcome to Smart-Grid Agent</h1>
+            <p>Please sign in to access your energy management dashboard.</p>
+            <button id="login-btn" class="primary-btn">Login with Okta</button>
+        </div>
+    </div>
+
+    <div class="app-container" id="app-container" style="display: none;">
         <!-- Header Section -->
         <header class="dashboard-header glass-panel">
             <div class="branding">
@@ -16,20 +24,60 @@
                 <h1>Energy Agent Dashboard</h1>
             </div>
             <div class="stream-data">
-                <div class="data-card">
+                <div class="data-card" id="data-card-clock">
                     <span class="label">Clock</span>
                     <span class="value" id="clock-display">--:--</span>
                 </div>
-                <div class="data-card">
+                <div class="data-card" id="data-card-grid-price">
                     <span class="label">Grid Price</span>
                     <span class="value default-color" id="price-display">$0.000 <small>/kWh</small></span>
                 </div>
-                <div class="data-card">
+                <div class="data-card" id="data-card-weather-temperature">
                     <span class="label">Temperature</span>
                     <span class="value default-color" id="temp-display">--.-°F</span>
                 </div>
+                <button id="logout-btn" class="secondary-btn logout">Logout</button>
             </div>
         </header>
+
+        <!-- Energy Flow Visualizer -->
+        <section class="energy-flow-panel glass-panel">
+            <h2>Live Energy Flow</h2>
+            <div class="svg-container">
+                <svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Nodes -->
+                    <g class="node" id="node-solar" transform="translate(100, 100)">
+                        <circle r="40" class="node-bg" />
+                        <text y="60" text-anchor="middle">Solar</text>
+                        <path d="M-15,-15 L15,15 M-15,15 L15,-15 M0,-20 L0,20 M-20,0 L20,0" stroke="var(--accent-yellow)" stroke-width="3"/>
+                    </g>
+                    <g class="node" id="node-grid" transform="translate(700, 100)">
+                        <circle r="40" class="node-bg" />
+                        <text y="60" text-anchor="middle">Grid</text>
+                        <path d="M-20,10 L0,-15 L20,10 M0,-15 L0,20" stroke="var(--accent-blue)" stroke-width="3" fill="none"/>
+                    </g>
+                    <g class="node" id="node-battery" transform="translate(250, 300)">
+                        <circle r="40" class="node-bg" />
+                        <text y="60" text-anchor="middle">Battery</text>
+                        <rect x="-15" y="-20" width="30" height="40" rx="3" stroke="var(--accent-green)" stroke-width="3" fill="none"/>
+                        <rect x="-10" y="5" width="20" height="10" fill="var(--accent-green)" />
+                    </g>
+                    <g class="node" id="node-home" transform="translate(550, 300)">
+                        <circle r="40" class="node-bg" />
+                        <text y="60" text-anchor="middle">Home</text>
+                        <path d="M-20,10 L0,-15 L20,10 L20,20 L-20,20 Z" stroke="var(--text-primary)" stroke-width="3" fill="none"/>
+                    </g>
+
+                    <!-- Flow Paths -->
+                    <path id="flow-solar-battery" d="M140,100 L210,260" class="flow-path" />
+                    <path id="flow-solar-home" d="M140,110 Q350,150 510,260" class="flow-path" />
+                    <path id="flow-battery-home" d="M290,300 L510,300" class="flow-path" />
+                    <path id="flow-grid-home" d="M660,110 Q450,150 590,260" class="flow-path" />
+                    <path id="flow-battery-grid" d="M290,260 Q450,150 660,100" class="flow-path" />
+                    <path id="flow-grid-battery" d="M660,100 Q450,150 290,260" class="flow-path" />
+                </svg>
+            </div>
+        </section>
 
         <main class="dashboard-grid">
             <!-- Left Column: Active Decisions -->
@@ -72,6 +120,8 @@
         </main>
     </div>
 
+    <script src="https://global.oktacdn.com/okta-auth-js/7.2.0/okta-auth-js.min.js"></script>
+    <script src="/auth.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>

@@ -1,4 +1,8 @@
-document.addEventListener("DOMContentLoaded", () => {
+// Expose startApp globally so auth.js can call it after login.
+// auth.js is responsible for calling window.startApp() once authenticated.
+window.startApp = startApp;
+
+function startApp() {
     const statusIndicator = document.getElementById("connection-status");
     const clockDisplay = document.getElementById("clock-display");
     const priceDisplay = document.getElementById("price-display");
@@ -28,7 +32,10 @@ document.addEventListener("DOMContentLoaded", () => {
     function handleStreamEvent(payload) {
         switch (payload.type) {
             case "init":
-                if (payload.latestAction) renderLatestAction(payload.latestAction);
+                if (payload.latestAction) {
+                    renderLatestAction(payload.latestAction);
+                    updateEnergyFlow(payload.latestAction.action);
+                }
                 if (payload.guidelines) renderGuidelines(payload.guidelines);
                 if (payload.actionHistory) renderHistory(payload.actionHistory);
                 if (payload.lastClock) clockDisplay.innerText = payload.lastClock;
@@ -50,6 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 break;
             case "action_issued":
                 renderLatestAction(payload.data);
+                updateEnergyFlow(payload.data.action);
                 clearDecisionTimeout();
                 break;
             case "history_updated":
@@ -60,6 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 break;
             case "override_success":
                 clearActionPanel();
+                updateEnergyFlow(null);
                 showOverrideConfirmation();
                 break;
             case "stale_data":
@@ -225,4 +234,26 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error(err);
         }
     }
-});
+
+    function updateEnergyFlow(action) {
+        document.querySelectorAll('.flow-path').forEach(path => {
+            path.classList.remove('flow-active', 'flow-charging', 'flow-selling', 'flow-buying');
+        });
+        if (!action) return;
+        const mappings = {
+            'SELL_TO_GRID':       { id: 'flow-battery-grid', classes: ['flow-active', 'flow-selling'] },
+            'BUY_FROM_GRID':      { id: 'flow-grid-home',    classes: ['flow-active', 'flow-buying'] },
+            'STORE_IN_BATTERY':   { id: 'flow-solar-battery',classes: ['flow-active', 'flow-charging'] },
+            'DISCHARGE_BATTERY':  { id: 'flow-battery-home', classes: ['flow-active'] },
+            'SHUT_OFF_AC':        { id: null },
+            'RESTORE_AC':         { id: 'flow-solar-home',   classes: ['flow-active'] },
+            'CHARGE_EV_NOW':      { id: 'flow-grid-home',    classes: ['flow-active', 'flow-buying'] },
+            'PAUSE_EV_CHARGING':  { id: null },
+        };
+        const flow = mappings[action];
+        if (flow && flow.id) {
+            const path = document.getElementById(flow.id);
+            if (path) path.classList.add(...flow.classes);
+        }
+    }
+}
