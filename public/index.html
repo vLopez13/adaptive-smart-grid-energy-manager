@@ -8,15 +8,8 @@
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <div id="auth-overlay" class="auth-overlay glass-panel">
-        <div class="auth-box">
-            <h1>Welcome to Smart-Grid Agent</h1>
-            <p>Please sign in to access your energy management dashboard.</p>
-            <button id="login-btn" class="primary-btn">Login with Okta</button>
-        </div>
-    </div>
 
-    <div class="app-container" id="app-container" style="display: none;">
+    <div class="app-container" id="app-container">
         <!-- Header Section -->
         <header class="dashboard-header glass-panel">
             <div class="branding">
@@ -36,6 +29,7 @@
                     <span class="label">Temperature</span>
                     <span class="value default-color" id="temp-display">--.-°F</span>
                 </div>
+                <div id="user-profile"></div>
                 <button id="logout-btn" class="secondary-btn logout">Logout</button>
             </div>
         </header>
@@ -120,8 +114,6 @@
         </main>
     </div>
 
-    <script src="https://global.oktacdn.com/okta-auth-js/7.2.0/okta-auth-js.min.js"></script>
-    <script src="/auth.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>

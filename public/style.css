@@ -268,19 +268,27 @@ td .history-action {
     font-weight: 600;
 }
 
-/* ====== Auth Overlay ====== */
-.auth-overlay {
-    position: fixed;
-    top: 0; left: 0; width: 100vw; height: 100vh;
+/* ====== User Profile ====== */
+#user-profile {
     display: flex;
-    justify-content: center;
     align-items: center;
-    z-index: 1000;
+    gap: 0.75rem;
+    margin-right: 1rem;
 }
-.auth-box {
-    text-align: center;
-    padding: 2.5rem;
+
+#user-profile .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
 }
+
+#user-profile .user-name {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
 .primary-btn {
     background-color: var(--accent-blue);
     color: white;

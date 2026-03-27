@@ -1,8 +1,4 @@
-// Expose startApp globally so auth.js can call it after login.
-// auth.js is responsible for calling window.startApp() once authenticated.
-window.startApp = startApp;
-
-function startApp() {
+document.addEventListener('DOMContentLoaded', async () => {
     const statusIndicator = document.getElementById("connection-status");
     const clockDisplay = document.getElementById("clock-display");
     const priceDisplay = document.getElementById("price-display");
@@ -15,6 +11,27 @@ function startApp() {
 
     // Track the action currently shown so Override sends the right action to the server.
     let currentActionName = null;
+
+    // Fetch user profile
+    try {
+        const userRes = await fetch('/api/me');
+        if (userRes.ok) {
+            const user = await userRes.json();
+            const profileDiv = document.getElementById('user-profile');
+            profileDiv.innerHTML = `
+                <img src="${user.picture}" alt="${user.name}" class="avatar">
+                <span class="user-name">${user.name}</span>
+            `;
+        }
+    } catch (err) {
+        console.error('Failed to fetch user profile:', err);
+    }
+
+    // Set logout link
+    const logoutBtn = document.getElementById('logout-btn');
+    logoutBtn.addEventListener('click', () => {
+        window.location.href = '/logout';
+    });
 
     // Connect SSE
     const evtSource = new EventSource("/api/stream");
@@ -266,4 +283,4 @@ function startApp() {
             if (path) path.classList.add(...flow.classes);
         }
     }
-}
+});
