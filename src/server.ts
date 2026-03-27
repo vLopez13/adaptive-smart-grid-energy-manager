@@ -8,6 +8,7 @@ import { EnergyAgent } from './agent/EnergyAgent';
 import { toPreferenceGuidelines } from './agent/guidelineAdapter';
 import { resolvePostgresContextConfig, fetchLatestExternalContextSafe } from './context/postgresPublicTest';
 import { EventEmitter } from 'events';
+import type { Action } from './types/energy';
 
 const app = express();
 app.use(cors());
@@ -80,6 +81,11 @@ simulator.on('tick', async (tick: TickPayload) => {
             external,
         });
 
+        const appliedIds = agent.getLastAppliedGuidelineIds();
+        for (const id of appliedIds) {
+            await store.incrementApplied(id);
+        }
+
         const newAction: ActionItem = {
             action: decision.action,
             reason: decision.reasonDetail,
@@ -143,8 +149,23 @@ app.get('/api/stream', (req: Request, res: Response) => {
     req.on('close', () => streamBus.off('event', onEvent));
 });
 
-app.post('/api/override', (_req: Request, res: Response) => {
+app.post('/api/override', async (_req: Request, res: Response) => {
     console.log('User Override requested!');
+    const overridden = latestAction;
+
+    if (overridden) {
+        const newGuideline = agent.applyPenalty(overridden.action as Action, {
+            clock: lastClock,
+            gridPrice: lastPrice,
+            weatherTemperature: lastTemp,
+        });
+        await store.add(newGuideline);
+        guidelines.push(newGuideline);
+        agent.setGuidelines(toPreferenceGuidelines(guidelines));
+        preferencesUnavailable = false;
+        streamBus.emit('event', { type: 'guidelines_updated', data: guidelines });
+    }
+
     latestAction = null;
     streamBus.emit('event', { type: 'override_success' });
     res.json({ success: true });
