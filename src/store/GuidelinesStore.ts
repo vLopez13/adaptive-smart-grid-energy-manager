@@ -38,16 +38,11 @@ export class GuidelinesStore {
     }
 
     async load(): Promise<Guideline[]> {
-        try {
-            await this.ensureTable();
-            const result = await this.pool.query<GuidelineRow>(
-                'SELECT id, text, created_at, times_applied FROM preference_guidelines ORDER BY created_at ASC'
-            );
-            return result.rows.map(this.toGuideline);
-        } catch (err) {
-            console.warn('[GuidelinesStore] DB unreachable, returning empty guidelines:', (err as Error).message);
-            return [];
-        }
+        await this.ensureTable();
+        const result = await this.pool.query<GuidelineRow>(
+            'SELECT id, text, created_at, times_applied FROM preference_guidelines ORDER BY created_at ASC'
+        );
+        return result.rows.map(this.toGuideline);
     }
 
     async add(guideline: Guideline): Promise<void> {

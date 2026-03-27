@@ -242,8 +242,10 @@ app.delete('/api/guidelines/:id', requiresAuth(), async (req: Request<{ id: stri
 const PORT = process.env.PORT ?? 3000;
 
 export async function start(): Promise<void> {
-    guidelines = await store.load();
-    if (guidelines.length === 0) {
+    try {
+        guidelines = await store.load();
+    } catch (err) {
+        console.warn('[Server] Guidelines Store unreachable, preference learning will be transient.');
         preferencesUnavailable = true;
     }
     simulator.start();
