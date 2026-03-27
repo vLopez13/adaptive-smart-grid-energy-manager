@@ -99,7 +99,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on Requirement 2 (Agent) being merged"
     },
     {
@@ -116,7 +116,7 @@
         "Tests pass"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-003 (GuidelinesStore wired) and US-006 (Penalty signal wired)"
     },
     {

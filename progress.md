@@ -10,11 +10,11 @@
 
 ## High-Level Requirements Tracking
 
-- [x] **Requirement 1: Data Stream Simulation** 
+- [x] **Requirement 1: Data Stream Simulation**
 - [ ] **Requirement 2: Agent Decision Cycle**
-- [ ] **Requirement 3: Action Execution**
-- [ ] **Requirement 4: User Override**
-- [ ] **Requirement 5: Preference Learning**
+- [x] **Requirement 3: Action Execution**
+- [x] **Requirement 4: User Override**
+- [x] **Requirement 5: Preference Learning**
 - [/] **Requirement 6: Dashboard Display**
 - [ ] **Requirement 7: Preference Guideline Management**
 - [ ] **Requirement 8: System Resilience**
@@ -28,6 +28,14 @@
 - **DataStreamSimulator Implemented**: Completed Requirement 1. The simulator autonomously manages variables for `Clock`, `Grid_Price`, and `Weather_Temperature` over timed intervals.
 - **Validation**: Wrote unit tests confirming all streams respect required min/max bounds and start configurations. Built `demo.ts` for real-time visual testing.
 - **Docs Drafted**: Extracted and compiled the Agent architecture rules into `agents.md` for our upcoming Agent task.
+
+### March 27, 2026 - Override Penalty and Preference Learning Implementation
+- **`findBlockingGuidelineIds` (`src/agent/PreferenceGuideline.ts`)**: Added exported function that returns IDs of all guidelines blocking a given action in the current context.
+- **`EnergyAgent` enhancements (`src/agent/EnergyAgent.ts`)**: Updated `decide()` to track which guideline IDs blocked proposals via `lastAppliedGuidelineIds`. Added `getLastAppliedGuidelineIds()` getter. Added `applyPenalty()` method that generates a parseable `Do not {ACTION} when {FIELD} {OP} {VALUE}` guideline string using `orderDimensionsByUrgency` to determine the dominant signal dimension.
+- **Server wiring (`src/server.ts`)**: Updated `POST /api/override` to capture the overridden action, call `agent.applyPenalty()`, persist the new guideline via `GuidelinesStore.add()`, broadcast `guidelines_updated` to all SSE clients, then clear `latestAction` and emit `override_success`. Tick handler now calls `store.incrementApplied(id)` for each guideline that filtered an action.
+- **uuid mock (`src/__mocks__/uuid.ts`)**: Created CJS-compatible uuid mock so Jest (CommonJS mode) can import the ESM-only uuid package. Added `moduleNameMapper` to `jest.config.ts`.
+- **Unit tests**: 7 new tests covering `applyPenalty` with high price, extreme temperature, peak hour, parseability by `toPreferenceGuideline`, fall-through on blocked proposals, `getLastAppliedGuidelineIds` tracking, and empty IDs when no blocking occurs. All 57 tests pass. TypeScript strict mode passes.
+- **Browser verified**: Override button clears the action panel and a new preference guideline appears in the Preference Guidelines section within 1 second.
 
 ### March 27, 2026 - Dashboard UI Implementation
 - **Express Server (`server.ts`)**: Built a robust SSE event bus over HTTP to natively stream real-time JSON payloads using Node.js without extra socket libraries.

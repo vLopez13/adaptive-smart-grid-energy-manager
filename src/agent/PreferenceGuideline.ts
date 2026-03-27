@@ -25,3 +25,13 @@ export function isActionAllowedByGuidelines(
     }
     return true;
 }
+
+export function findBlockingGuidelineIds(
+    action: Action,
+    context: DecisionContext,
+    guidelines: readonly PreferenceGuideline[]
+): string[] {
+    return guidelines
+        .filter((g) => g.excludedAction === action && g.applies(context))
+        .map((g) => g.id);
+}
