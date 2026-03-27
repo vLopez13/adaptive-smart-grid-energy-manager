@@ -133,7 +133,7 @@
         "Tests pass"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001 (Ghost DB provisioned) and Requirement 2 (Agent) being merged"
     },
     {
@@ -149,7 +149,7 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001 (Ghost DB provisioned) and Requirement 2 (Agent) being merged"
     }
   ]
