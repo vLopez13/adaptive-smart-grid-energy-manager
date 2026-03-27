@@ -37,9 +37,11 @@ Home energy is **dynamic**: electricity prices spike, weather shifts comfort nee
 | Area | Stack |
 |------|--------|
 | **Runtime** | Node.js · TypeScript · `ts-node` |
-| **API & realtime** | Express 5 · CORS · **Server-Sent Events (SSE)** |
-| **Data** | `pg` · PostgreSQL (Airbyte destination + optional guideline storage) |
-| **Ingestion (upstream)** | Airbyte Cloud → Postgres `public.test` *(read-only in the agent loop)* |
+| **API & realtime** | Express 5 · CORS · Server-Sent Events (SSE) |
+| **Data** | `pg` · PostgreSQL |
+| **Context ingestion** | Airbyte Cloud |
+| **Identity & access** | Auth0 |
+| **Publishing & reports** | Ghost |
 | **Testing** | Jest · ts-jest |
 
 ---
