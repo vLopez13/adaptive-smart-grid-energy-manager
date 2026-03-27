@@ -1,9 +1,19 @@
-// @ts-nocheck
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { join } from 'path';
 import { DataStreamSimulator } from './simulator/DataStreamSimulator';
 import { EventEmitter } from 'events';
+
+interface Action {
+    action: string;
+    reason: string;
+    timestamp: string;
+}
+
+interface Guideline {
+    id: string;
+    text: string;
+}
 
 const app = express();
 app.use(cors());
@@ -24,17 +34,17 @@ let lastPrice = 0;
 let lastTemp = 0;
 let lastClock = "08:00";
 
-simulator.on('clock', (val) => { lastClock = val; streamBus.emit('event', { type: 'clock', data: val }); });
-simulator.on('grid_price', (val) => { lastPrice = val; streamBus.emit('event', { type: 'grid_price', data: val }); });
-simulator.on('weather_temperature', (val) => { lastTemp = val; streamBus.emit('event', { type: 'weather_temperature', data: val }); });
+simulator.on('clock', (val: string) => { lastClock = val; streamBus.emit('event', { type: 'clock', data: val }); });
+simulator.on('grid_price', (val: number) => { lastPrice = val; streamBus.emit('event', { type: 'grid_price', data: val }); });
+simulator.on('weather_temperature', (val: number) => { lastTemp = val; streamBus.emit('event', { type: 'weather_temperature', data: val }); });
 
 // Start emitting
 simulator.start();
 
 // ====== MOCK AGENT DATA FOR UI TESTING ======
-let latestAction: any = null;
-let actionHistory: any[] = [];
-let guidelines: any[] = [
+let latestAction: Action | null = null;
+let actionHistory: Action[] = [];
+let guidelines: Guideline[] = [
     { id: 'g1', text: 'Do not SHUT_OFF_AC when Temperature > 90°F' },
     { id: 'g2', text: 'Prioritize CHARGE_EV_NOW if Grid_Price < $0.10' }
 ];
@@ -43,7 +53,7 @@ let guidelines: any[] = [
 setInterval(() => {
     const actions = ['SELL_TO_GRID', 'BUY_FROM_GRID', 'STORE_IN_BATTERY', 'DISCHARGE_BATTERY', 'SHUT_OFF_AC', 'RESTORE_AC', 'CHARGE_EV_NOW', 'PAUSE_EV_CHARGING'];
     const action = actions[Math.floor(Math.random() * actions.length)];
-    const newAction = {
+    const newAction: Action = {
         action,
         reason: `Grid Price was $${lastPrice.toFixed(3)} and Temperature was ${lastTemp.toFixed(1)}°F.`,
         timestamp: new Date().toLocaleTimeString()
@@ -57,7 +67,7 @@ setInterval(() => {
 }, 7000);
 
 // ====== SSE REST ENDPOINTS ======
-app.get('/api/stream', (req, res) => {
+app.get('/api/stream', (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -75,15 +85,16 @@ app.get('/api/stream', (req, res) => {
     });
 });
 
-app.post('/api/override', (req, res) => {
+app.post('/api/override', (req: Request, res: Response) => {
     console.log("User Override requested!");
     latestAction = null;
     streamBus.emit('event', { type: 'override_success' });
     res.json({ success: true });
 });
 
-app.delete('/api/guidelines/:id', (req, res) => {
-    guidelines = guidelines.filter(g => g.id !== req.params.id);
+app.delete('/api/guidelines/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    guidelines = guidelines.filter(g => g.id !== id);
     streamBus.emit('event', { type: 'guidelines_updated', data: guidelines });
     res.json({ success: true });
 });
@@ -92,3 +103,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Smart Grid Dashboard is running on http://localhost:${PORT}`);
 });
+
