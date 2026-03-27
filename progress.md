@@ -15,7 +15,7 @@
 - [ ] **Requirement 3: Action Execution**
 - [ ] **Requirement 4: User Override**
 - [ ] **Requirement 5: Preference Learning**
-- [x] **Requirement 6: Dashboard Display**
+- [/] **Requirement 6: Dashboard Display**
 - [ ] **Requirement 7: Preference Guideline Management**
 - [ ] **Requirement 8: System Resilience**
 

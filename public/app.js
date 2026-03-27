@@ -107,8 +107,11 @@ document.addEventListener("DOMContentLoaded", () => {
             li.className = "guideline-item";
             li.innerHTML = `
                 <span class="text">${g.text}</span>
-                <button class="delete-btn" onclick="deleteGuideline('${g.id}')">✕</button>
+                <button class="delete-btn">✕</button>
             `;
+            const btn = li.querySelector('.delete-btn');
+            btn.dataset.id = g.id;
+            btn.addEventListener('click', () => deleteGuideline(g.id));
             guidelinesList.appendChild(li);
         });
     }
