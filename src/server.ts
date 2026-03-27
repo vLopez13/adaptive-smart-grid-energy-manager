@@ -26,9 +26,33 @@ let lastClock = '08:00';
 let guidelines: Guideline[] = [];
 let preferencesUnavailable = false;
 
-simulator.on('clock', (val: string) => { lastClock = val; streamBus.emit('event', { type: 'clock', data: val }); });
-simulator.on('grid_price', (val: number) => { lastPrice = val; streamBus.emit('event', { type: 'grid_price', data: val }); });
-simulator.on('weather_temperature', (val: number) => { lastTemp = val; streamBus.emit('event', { type: 'weather_temperature', data: val }); });
+// Stale data tracking (Req 8.1)
+const lastUpdated: Record<string, number> = { clock: 0, grid_price: 0, weather_temperature: 0 };
+
+simulator.on('clock', (val: string) => {
+    lastClock = val;
+    lastUpdated.clock = Date.now();
+    streamBus.emit('event', { type: 'clock', data: val });
+});
+simulator.on('grid_price', (val: number) => {
+    lastPrice = val;
+    lastUpdated.grid_price = Date.now();
+    streamBus.emit('event', { type: 'grid_price', data: val });
+});
+simulator.on('weather_temperature', (val: number) => {
+    lastTemp = val;
+    lastUpdated.weather_temperature = Date.now();
+    streamBus.emit('event', { type: 'weather_temperature', data: val });
+});
+
+setInterval(() => {
+    const now = Date.now();
+    for (const stream of Object.keys(lastUpdated)) {
+        if (lastUpdated[stream] > 0 && now - lastUpdated[stream] > 5000) {
+            streamBus.emit('event', { type: 'stale_data', stream });
+        }
+    }
+}, 2000);
 
 // ====== MOCK AGENT (removed when real Agent lands in Req 2) ======
 interface ActionItem {
