@@ -244,6 +244,21 @@ See `requirements.md` for the full spec (data simulation, decision cycle, execut
 
 ---
 
+## Sponsor Integrations
+
+This project uses three sponsor technologies directly in the product:
+
+- **Airbyte Cloud**  
+  Airbyte is used as the upstream context ingestion layer. External energy-related data is synced into Postgres, and the agent reads the latest synced row during each decision cycle.
+
+- **Auth0**  
+  Auth0 is used to secure dashboard access, authenticate the homeowner, and protect control actions such as overrides and preference management.
+
+- **Ghost**  
+  Ghost is used as the publishing layer for homeowner-facing summaries, decision reports, and transparent communication of what the agent decided and learned.
+
+---
+
 <div align="center">
 
 **Built with TypeScript, Express, Postgres, and a tight feedback loop between humans and their agents.**
