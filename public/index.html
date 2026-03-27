@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart-Grid AI Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header Section -->
+        <header class="dashboard-header glass-panel">
+            <div class="branding">
+                <div class="status-indicator" id="connection-status"></div>
+                <h1>Energy Agent Dashboard</h1>
+            </div>
+            <div class="stream-data">
+                <div class="data-card">
+                    <span class="label">Clock</span>
+                    <span class="value" id="clock-display">--:--</span>
+                </div>
+                <div class="data-card">
+                    <span class="label">Grid Price</span>
+                    <span class="value default-color" id="price-display">$0.000 <small>/kWh</small></span>
+                </div>
+                <div class="data-card">
+                    <span class="label">Temperature</span>
+                    <span class="value default-color" id="temp-display">--.-°F</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-grid">
+            <!-- Left Column: Active Decisions -->
+            <section class="decisions-column">
+                <div class="glass-panel main-action-panel">
+                    <h2>Current Agent Decision</h2>
+                    <div id="latest-action-container" class="waiting-state">
+                        <div class="pulse-ring"></div>
+                        <p id="action-status-text">Waiting for first decision...</p>
+                    </div>
+                </div>
+
+                <div class="glass-panel guidelines-panel">
+                    <h2>Preference Guidelines (<span id="guidelines-count">0</span>)</h2>
+                    <p class="subtitle">Learned from user overrides</p>
+                    <ul id="guidelines-list" class="guidelines-list">
+                        <!-- Populated by JS -->
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Right Column: History -->
+            <section class="history-column glass-panel">
+                <h2>Action History (Last 20)</h2>
+                <div class="table-container">
+                    <table id="history-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Action</th>
+                                <th>Reasoning Context</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

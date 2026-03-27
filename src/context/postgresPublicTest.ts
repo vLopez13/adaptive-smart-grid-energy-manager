@@ -58,11 +58,14 @@ export function resolvePostgresContextConfig(): PostgresContextConfig {
     return { enabled: pool !== null, pool };
 }
 
+const AIRBYTE_TABLE = process.env.AIRBYTE_TABLE ?? 'test';
+
 async function listPublicTestColumns(client: { query: Pool['query'] }): Promise<string[]> {
     const res = await client.query<{ column_name: string }>(
         `SELECT column_name FROM information_schema.columns
-     WHERE table_schema = 'public' AND table_name = 'test'
-     ORDER BY ordinal_position`
+     WHERE table_schema = 'public' AND table_name = $1
+     ORDER BY ordinal_position`,
+        [AIRBYTE_TABLE]
     );
     return res.rows.map((r) => r.column_name);
 }
@@ -96,7 +99,8 @@ export interface FetchLatestRowResult {
 }
 
 /**
- * Reads the latest synced row from `public.test` (Airbyte destination).
+ * Reads the latest synced row from the Airbyte destination table.
+ * Table name defaults to `public.test`; override with AIRBYTE_TABLE env var.
  * Does not call Airbyte — only Postgres.
  */
 export async function fetchLatestPublicTestRow(pool: Pool): Promise<FetchLatestRowResult> {
@@ -110,7 +114,7 @@ export async function fetchLatestPublicTestRow(pool: Pool): Promise<FetchLatestR
         if (!orderCol) {
             return { row: null, orderByColumn: null, columns };
         }
-        const sql = `SELECT * FROM public.test ORDER BY ${quoteIdent(orderCol)} DESC NULLS LAST LIMIT 1`;
+        const sql = `SELECT * FROM public.${quoteIdent(AIRBYTE_TABLE)} ORDER BY ${quoteIdent(orderCol)} DESC NULLS LAST LIMIT 1`;
         const res = await client.query<Record<string, unknown>>(sql);
         const row = res.rows[0] ?? null;
         return { row, orderByColumn: orderCol, columns };

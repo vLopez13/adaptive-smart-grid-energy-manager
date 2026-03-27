@@ -1,0 +1,156 @@
+{
+  "project": "Adaptive Smart-Grid Energy Manager",
+  "branchName": "ralph/requirements-3-through-8",
+  "description": "Complete all remaining requirements (3–8) excluding Requirement 2 (Agent Decision Cycle), which is being handled separately. Persistence uses Ghost (ghost.build) — a Postgres database designed for agents. Stories are ordered so infrastructure lands first, followed by Agent-dependent features once Req 2 merges.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Provision Ghost Postgres database and configure connection",
+      "description": "As a developer, I need a Ghost Postgres database provisioned and its connection string available as an env var so all other stories can connect to it.",
+      "acceptanceCriteria": [
+        "Install Ghost CLI: `curl -fsSL https://install.ghost.build | sh`",
+        "Run `ghost login` to authenticate with GitHub OAuth",
+        "Run `ghost create --name smart-grid-guidelines --wait` and capture the returned database ID",
+        "Run `ghost connect <id>` to get the connection string and store it as `DATABASE_URL` in a `.env` file (add `.env` to `.gitignore` if not already present)",
+        "Install `pg` and `@types/pg`: `npm install pg && npm install --save-dev @types/pg`",
+        "Install `dotenv`: `npm install dotenv`",
+        "Confirm connection works by running `ghost sql <id> 'SELECT 1'` successfully",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Build GuidelinesStore backed by Ghost Postgres",
+      "description": "As a developer, I need a GuidelinesStore class that persists Preference_Guidelines to the Ghost Postgres database so guidelines survive restarts.",
+      "acceptanceCriteria": [
+        "Create `src/store/GuidelinesStore.ts` that connects to Ghost via `DATABASE_URL` env var using the `pg` Pool",
+        "On first use, run `CREATE TABLE IF NOT EXISTS preference_guidelines (id TEXT PRIMARY KEY, text TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), times_applied INTEGER NOT NULL DEFAULT 0)`",
+        "Implement async methods: `load(): Promise<Guideline[]>`, `add(g: Guideline): Promise<void>`, `remove(id: string): Promise<void>`, `incrementApplied(id: string): Promise<void>`, `clear(): Promise<void>`",
+        "Define and export `Guideline` interface: `{ id: string; text: string; createdAt: string; timesApplied: number }`",
+        "If the DB is unreachable, `load()` returns an empty array and logs a warning (does not throw)",
+        "Write unit tests in `src/store/GuidelinesStore.test.ts` using a mocked `pg` Pool covering: load, add, remove, incrementApplied, and the unreachable-DB fallback",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Depends on US-001 (DATABASE_URL and pg installed)"
+    },
+    {
+      "id": "US-003",
+      "title": "Wire GuidelinesStore into server.ts with startup failure handling (Req 8.2)",
+      "description": "As a homeowner, I want the server to load persisted guidelines from Ghost on startup and fall back gracefully if the database is unavailable.",
+      "acceptanceCriteria": [
+        "Import `dotenv/config` at the top of server.ts so `DATABASE_URL` is available at runtime",
+        "Replace the hardcoded `guidelines` array in server.ts with `await GuidelinesStore.load()` called before `app.listen()`",
+        "If `GuidelinesStore.load()` returns empty due to a DB error, include `{ preferencesUnavailable: true }` in the SSE `init` payload so the dashboard can show a 'Preferences unavailable' warning",
+        "`DELETE /api/guidelines/:id` calls `await GuidelinesStore.remove(req.params.id)` so deletions persist in Ghost across restarts",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Depends on US-002"
+    },
+    {
+      "id": "US-004",
+      "title": "Add stale data detection and warning to server.ts (Req 8.1)",
+      "description": "As a homeowner, I want the dashboard to warn me if a data stream has not updated within 5 seconds of its expected interval.",
+      "acceptanceCriteria": [
+        "Track `lastUpdated` timestamps for each stream (clock, grid_price, weather_temperature) in server.ts",
+        "A setInterval check runs every 2 seconds; if any stream's `lastUpdated` is more than 5 seconds ago, emit `{ type: 'stale_data', stream: '<name>' }` via streamBus",
+        "In public/app.js, handle the `stale_data` event by displaying a `'Stale data: <stream>'` warning badge on the affected data card in the header",
+        "Warning clears when a fresh value for that stream arrives",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Add decision timeout warning to dashboard (Req 6.6)",
+      "description": "As a homeowner, I want the dashboard to warn me if the agent takes more than 2 seconds to produce a decision after a data stream update.",
+      "acceptanceCriteria": [
+        "Server tracks the timestamp of the last data stream update and the last action issued",
+        "If more than 2 seconds pass between a stream update and the next action, emit `{ type: 'decision_timeout' }` via streamBus",
+        "In public/app.js, handle `decision_timeout` by showing a 'Decision timeout' warning in the current agent decision panel",
+        "Warning clears when the next `action_issued` event arrives",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Remove the mock setInterval action generator from server.ts when wiring in the real Agent (US-006)"
+    },
+    {
+      "id": "US-006",
+      "title": "Wire Agent into server.ts and implement Override + Penalty (Req 4)",
+      "description": "As a homeowner, I want clicking Override to immediately cancel the active action, restore previous state, and send a Penalty signal to the Agent.",
+      "acceptanceCriteria": [
+        "Remove the mock `setInterval` action generator from server.ts",
+        "Import and instantiate the Agent from Req 2; subscribe to its `action_issued` event to update `latestAction` and broadcast via streamBus",
+        "`POST /api/override` cancels the active action, sets `latestAction = null`, calls `agent.applyPenalty(overriddenAction, { clock, price, temp }, activeGuidelines)`, and emits `{ type: 'override_success' }`",
+        "Dashboard displays 'Override received — action cancelled' confirmation text for 3 seconds after override",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Depends on Requirement 2 (Agent) being merged"
+    },
+    {
+      "id": "US-007",
+      "title": "Implement Preference Learning — guideline generation and exclusion (Req 5)",
+      "description": "As a homeowner, I want the Agent to convert each Penalty into a persistent Preference_Guideline stored in Ghost that prevents the same action under similar conditions.",
+      "acceptanceCriteria": [
+        "Agent.applyPenalty() generates a human-readable guideline string (e.g. 'Do not SHUT_OFF_AC when Temperature > 90°F')",
+        "Generated guideline is saved via `await GuidelinesStore.add()` to the Ghost Postgres database",
+        "New guideline is broadcast as `{ type: 'guidelines_updated', data: allGuidelines }` within 1 second of the penalty",
+        "In each decision cycle, active guidelines matching current conditions exclude their penalized action from the candidate set",
+        "Each time a guideline filters an action, call `await GuidelinesStore.incrementApplied(id)` so `times_applied` stays accurate in Ghost",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Depends on US-003 (GuidelinesStore wired) and US-006 (Penalty signal wired)"
+    },
+    {
+      "id": "US-008",
+      "title": "Implement Action Execution logging to Ghost Postgres (Req 3)",
+      "description": "As a developer, I want every issued action logged to Ghost Postgres with timestamps, triggering stream values, and the active guidelines that influenced it.",
+      "acceptanceCriteria": [
+        "Create table `action_log` in Ghost: `(id TEXT PRIMARY KEY, action TEXT NOT NULL, clock TEXT, grid_price NUMERIC, temperature NUMERIC, estimated_revenue NUMERIC, active_guideline_ids TEXT[], logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`",
+        "Every action issued by the Agent inserts a row into `action_log` via a `pg` query",
+        "SELL_TO_GRID rows include `estimated_revenue` (gridPrice × 10 kWh)",
+        "SHUT_OFF_AC rows include `temperature` and `grid_price`",
+        "CHARGE_EV_NOW rows include `grid_price` and `clock`",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Depends on US-001 (Ghost DB provisioned) and Requirement 2 (Agent) being merged"
+    },
+    {
+      "id": "US-009",
+      "title": "Add decision error boundary to Agent and dashboard (Req 8.3)",
+      "description": "As a homeowner, I want unhandled Agent errors logged to Ghost Postgres and surfaced on the dashboard without crashing the server.",
+      "acceptanceCriteria": [
+        "Create table `error_log` in Ghost: `(id TEXT PRIMARY KEY, message TEXT, stack TEXT, clock TEXT, grid_price NUMERIC, temperature NUMERIC, logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`",
+        "Wrap the Agent's decision cycle in a try/catch; on error, insert a row into `error_log` via a `pg` query with full context",
+        "On error, emit `{ type: 'decision_error', message: err.message }` via streamBus",
+        "In public/app.js, handle `decision_error` by showing a 'Decision error' status in the agent decision panel",
+        "Server process does not crash or stop the simulator when a decision error occurs",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Depends on US-001 (Ghost DB provisioned) and Requirement 2 (Agent) being merged"
+    }
+  ]
+}
