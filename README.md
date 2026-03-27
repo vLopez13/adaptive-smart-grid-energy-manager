@@ -18,8 +18,8 @@
 
 ---
 
-**Hackathon:** Deep Agents Hackathon
-**Team:** Logesh Rajendran, Vanessa Lopez, Volodymyr Borysenko
+**Hackathon:** Deep Agents Hackathon<br/>
+**Team:** Logesh Rajendran, Vanessa Lopez, Volodymyr Borysenko<br/>
 **Live demo:** *Add your deployed URL, or run locally →* [`http://localhost:3000`](http://localhost:3000) *(after `npm run server`)*
 
 ---
