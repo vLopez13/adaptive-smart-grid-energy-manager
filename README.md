@@ -18,8 +18,8 @@
 
 ---
 
-**Hackathon:** *Add your event name & date*  
-**Team:** *Add your names*  
+**Hackathon:** Deep Agents Hackathon
+**Team:** Logesh Rajendran, Vanessa Lopez, Volodymyr Borysenko
 **Live demo:** *Add your deployed URL, or run locally →* [`http://localhost:3000`](http://localhost:3000) *(after `npm run server`)*
 
 ---
@@ -28,7 +28,7 @@
 
 Home energy is **dynamic**: electricity prices spike, weather shifts comfort needs, and time-of-use rates reward shifting EV charging and storage — but most households still **react manually** or run dumb schedules.
 
-**This project is a production-style agent loop**: it continuously evaluates **Clock**, **Grid_Price**, and **Weather_Temperature**, layers in **latest external context** already landed in **Postgres** (synced upstream by **Airbyte Cloud** — the app never calls Airbyte inside the decision tick), applies **learned preference guidelines**, picks **one** command from a fixed action set, and surfaces everything on a **real-time dashboard** with overrides and audit logging.
+**This project is a production-style agent loop**: it continuously evaluates **Clock**, **Grid_Price**, and **Weather_Temperature**, layers in **latest external context** already landed in **Postgres** (synced upstream by **Airbyte Cloud** - the app never calls Airbyte inside the decision tick), applies **learned preference guidelines**, picks **one** command from a fixed action set, and surfaces everything on a **real-time dashboard** with overrides and audit logging.
 
 ---
 
