@@ -248,7 +248,7 @@ export async function start(): Promise<void> {
     }
     simulator.start();
     app.listen(PORT, () => {
-        console.log(`Smart Grid Dashboard running on http://localhost:${PORT}`);
+        console.log(`Lumera running on http://localhost:${PORT}`);
     });
 }
 

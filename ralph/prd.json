@@ -1,5 +1,5 @@
 {
-  "project": "Adaptive Smart-Grid Energy Manager",
+  "project": "Lumera",
   "branchName": "ralph/auth0-google-signin",
   "description": "Replace the placeholder Okta auth overlay with real Auth0 authentication backed by Google Sign-In. Uses express-openid-connect for server-side session management so the Express server owns the auth boundary — no client-side tokens, no fake login bypass. All dashboard routes and API endpoints require a valid Auth0 session.",
   "userStories": [
