@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { join } from 'path';
+import { auth, requiresAuth } from 'express-openid-connect';
 import { DataStreamSimulator, type TickPayload } from './simulator/DataStreamSimulator';
 import { GuidelinesStore, type Guideline } from './store/GuidelinesStore';
 import { EnergyAgent } from './agent/EnergyAgent';
@@ -13,8 +14,29 @@ import { ActionLogger } from './store/ActionLogger';
 import { ErrorLogger } from './store/ErrorLogger';
 import { randomUUID } from 'crypto';
 
-const app = express();
+export const app = express();
 app.use(cors());
+
+app.use(
+    auth({
+        authRequired: false,
+        auth0Logout: true,
+        secret: process.env.AUTH0_SECRET,
+        baseURL: process.env.AUTH0_BASE_URL,
+        clientID: process.env.AUTH0_CLIENT_ID,
+        issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL,
+        clientSecret: process.env.AUTH0_CLIENT_SECRET,
+        authorizationParams: {
+            response_type: 'code',
+            scope: 'openid profile email',
+        },
+    })
+);
+
+app.get('/', requiresAuth(), (req, res) => {
+    res.sendFile(join(__dirname, '../public/index.html'));
+});
+
 app.use(express.static(join(__dirname, '../public')));
 app.use(express.json());
 
@@ -152,8 +174,13 @@ setInterval(() => {
     }
 }, 500);
 
+// ====== AUTH ENDPOINTS ======
+app.get('/api/me', requiresAuth(), (req: Request, res: Response) => {
+    res.json(req.oidc.user);
+});
+
 // ====== SSE ENDPOINTS ======
-app.get('/api/stream', (req: Request, res: Response) => {
+app.get('/api/stream', requiresAuth(), (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -176,7 +203,7 @@ app.get('/api/stream', (req: Request, res: Response) => {
     req.on('close', () => streamBus.off('event', onEvent));
 });
 
-app.post('/api/override', async (req: Request<object, object, { action?: string }>, res: Response) => {
+app.post('/api/override', requiresAuth(), async (req: Request<object, object, { action?: string }>, res: Response) => {
     console.log('User Override requested!');
     // Use the action sent by the client (what the user actually saw) to avoid
     // the race condition where latestAction has already advanced to the next tick.
@@ -205,7 +232,7 @@ app.post('/api/override', async (req: Request<object, object, { action?: string 
     res.json({ success: true });
 });
 
-app.delete('/api/guidelines/:id', async (req: Request<{ id: string }>, res: Response) => {
+app.delete('/api/guidelines/:id', requiresAuth(), async (req: Request<{ id: string }>, res: Response) => {
     await store.remove(req.params.id);
     guidelines = guidelines.filter((g) => g.id !== req.params.id);
     streamBus.emit('event', { type: 'guidelines_updated', data: guidelines });
@@ -214,7 +241,7 @@ app.delete('/api/guidelines/:id', async (req: Request<{ id: string }>, res: Resp
 
 const PORT = process.env.PORT ?? 3000;
 
-async function start(): Promise<void> {
+export async function start(): Promise<void> {
     guidelines = await store.load();
     if (guidelines.length === 0) {
         preferencesUnavailable = true;
@@ -225,4 +252,6 @@ async function start(): Promise<void> {
     });
 }
 
-start();
+if (require.main === module) {
+    start();
+}
