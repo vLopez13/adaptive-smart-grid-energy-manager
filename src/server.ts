@@ -114,7 +114,7 @@ simulator.on('tick', async (tick: TickPayload) => {
         const { row: external } = await fetchLatestExternalContextSafe(pgCtx.pool);
         agent.setGuidelines(toPreferenceGuidelines(guidelines));
 
-        const decision = agent.decide({
+        const decision = await agent.decide({
             simulator: {
                 clock: tick.clock,
                 gridPrice: tick.gridPrice,
