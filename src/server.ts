@@ -7,6 +7,7 @@ import { DataStreamSimulator, type TickPayload } from './simulator/DataStreamSim
 import { GuidelinesStore, type Guideline } from './store/GuidelinesStore';
 import { EnergyAgent } from './agent/EnergyAgent';
 import { toPreferenceGuidelines, toPreferenceGuideline } from './agent/guidelineAdapter';
+import type { PreferenceGuideline } from './agent/PreferenceGuideline';
 import { listProposalsInOrder } from './agent/decisionPolicy';
 import { resolvePostgresContextConfig, fetchLatestExternalContextSafe } from './context/postgresPublicTest';
 import { EventEmitter } from 'events';
@@ -262,6 +263,46 @@ app.post('/api/override', requiresAuth(), async (req: Request<object, object, { 
     res.json({ success: true });
 });
 
+// Apply user-selected learning rules (Req US-005)
+app.post('/api/apply-rules', requiresAuth(), async (req: Request<object, object, { ruleTexts?: string[] }>, res: Response) => {
+    try {
+        const { ruleTexts } = req.body;
+
+        if (!Array.isArray(ruleTexts) || ruleTexts.length === 0) {
+            return res.status(400).json({ error: 'ruleTexts must be a non-empty array' });
+        }
+
+        for (const ruleText of ruleTexts) {
+            // Enforce guideline cap before adding each new rule
+            if (guidelines.length >= MAX_GUIDELINES) {
+                const evicted = guidelines.shift()!;
+                await store.remove(evicted.id);
+            }
+
+            // Create guideline from rule text
+            const newGuideline: Guideline = {
+                id: randomUUID(),
+                text: ruleText.trim(),
+                createdAt: new Date().toISOString(),
+                timesApplied: 0,
+            };
+
+            await store.add(newGuideline);
+            guidelines.push(newGuideline);
+        }
+
+        agent.setGuidelines(toPreferenceGuidelines(guidelines));
+        preferencesUnavailable = false;
+        streamBus.emit('event', { type: 'guidelines_updated', data: guidelines });
+
+        res.json({ success: true, rulesApplied: ruleTexts.length });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[Apply Rules] Error:', message);
+        res.status(500).json({ error: `Failed to apply rules: ${message}` });
+    }
+});
+
 app.delete('/api/guidelines/:id', requiresAuth(), async (req: Request<{ id: string }>, res: Response) => {
     await store.remove(req.params.id);
     guidelines = guidelines.filter((g) => g.id !== req.params.id);
@@ -321,32 +362,38 @@ function calculateUrgencyScore(action: string, ctx: DecisionContext): number {
     }
 }
 
-app.post('/api/preview-decision-with-rule', requiresAuth(), async (req: Request<object, object, { ruleText?: string }>, res: Response) => {
+app.post('/api/preview-decision-with-rule', requiresAuth(), async (req: Request<object, object, { ruleText?: string; ruleTexts?: string[] }>, res: Response) => {
     try {
-        const { ruleText } = req.body;
+        const { ruleText, ruleTexts } = req.body;
 
-        if (!ruleText || typeof ruleText !== 'string') {
+        // Support both single rule (ruleText) and multiple rules (ruleTexts)
+        const rulesToApply = ruleTexts && Array.isArray(ruleTexts) ? ruleTexts : (ruleText ? [ruleText] : []);
+
+        if (rulesToApply.length === 0 || !rulesToApply.every(r => typeof r === 'string')) {
             return res.status(400).json({
                 blockedAction: '',
                 topAlternatives: [],
-                error: 'Missing or invalid ruleText parameter',
+                error: 'Missing or invalid ruleText/ruleTexts parameter',
             } as PreviewDecisionResponse);
         }
 
-        // Parse and validate rule text using guidelineAdapter
-        const tempGuideline: Guideline = {
+        // Parse and validate rule texts using guidelineAdapter
+        const tempGuidelines: Guideline[] = rulesToApply.map(text => ({
             id: 'temp-preview-' + randomUUID(),
-            text: ruleText.trim(),
+            text: text.trim(),
             createdAt: new Date().toISOString(),
             timesApplied: 0,
-        };
+        }));
 
-        const preferenceGuideline = toPreferenceGuideline(tempGuideline);
-        if (!preferenceGuideline) {
+        const preferenceGuidelines = tempGuidelines
+            .map(g => toPreferenceGuideline(g))
+            .filter((pg): pg is PreferenceGuideline => pg !== null);
+
+        if (preferenceGuidelines.length !== rulesToApply.length) {
             return res.status(400).json({
                 blockedAction: '',
                 topAlternatives: [],
-                error: 'Rule text does not match expected format: "Do not {ACTION} when {FIELD} {OP} {VALUE}"',
+                error: 'One or more rules do not match expected format: "Do not {ACTION} when {FIELD} {OP} {VALUE}"',
             } as PreviewDecisionResponse);
         }
 
@@ -363,12 +410,12 @@ app.post('/api/preview-decision-with-rule', requiresAuth(), async (req: Request<
         // Get all possible proposals in order of urgency
         const allProposals = listProposalsInOrder(ctx);
 
-        // Find which action is blocked by the new rule
-        const blockedByRule = preferenceGuideline.excludedAction;
+        // Collect all blocked actions from all rules
+        const blockedActions = new Set(preferenceGuidelines.map(pg => pg.excludedAction));
 
-        // Get top 3 allowed alternatives (excluding the blocked action)
+        // Get top 3 allowed alternatives (excluding any blocked actions)
         const topAlternatives = allProposals
-            .filter((p) => p.action !== blockedByRule)
+            .filter((p) => !blockedActions.has(p.action))
             .slice(0, 3)
             .map((p) => ({
                 action: p.action,
@@ -379,12 +426,15 @@ app.post('/api/preview-decision-with-rule', requiresAuth(), async (req: Request<
         // Check if all actions are blocked
         const allBlocked = topAlternatives.length === 0;
 
+        // Show primary blocked action (or first one if multiple)
+        const primaryBlockedAction = preferenceGuidelines[0]?.excludedAction || '';
+
         const response: PreviewDecisionResponse = {
-            blockedAction: blockedByRule,
+            blockedAction: primaryBlockedAction,
             topAlternatives,
             ...(allBlocked && {
                 allBlocked: true,
-                warning: 'This rule blocks all actions. Agent will default to STORE_IN_BATTERY.',
+                warning: 'These rules block all actions. Agent will default to STORE_IN_BATTERY.',
             }),
         };
 
