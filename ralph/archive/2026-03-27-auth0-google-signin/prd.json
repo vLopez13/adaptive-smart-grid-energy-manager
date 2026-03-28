@@ -1,0 +1,77 @@
+{
+  "project": "Lumera",
+  "branchName": "ralph/auth0-google-signin",
+  "description": "Replace the placeholder Okta auth overlay with real Auth0 authentication backed by Google Sign-In. Uses express-openid-connect for server-side session management so the Express server owns the auth boundary — no client-side tokens, no fake login bypass. All dashboard routes and API endpoints require a valid Auth0 session.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Install Auth0 Express SDK and declare environment variables",
+      "description": "As a developer, I need the Auth0 Express SDK installed and all required environment variables declared so the rest of the integration can be built on top of them.",
+      "acceptanceCriteria": [
+        "Run `npm install express-openid-connect --legacy-peer-deps` — package appears in dependencies in package.json",
+        "Add a `.env.example` file at the repo root with these keys and placeholder values: AUTH0_SECRET, AUTH0_BASE_URL, AUTH0_ISSUER_BASE_URL, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET",
+        "Confirm `.env` is listed in `.gitignore` (add it if missing)",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "AUTH0_SECRET must be a cryptographically random string ≥ 32 chars. AUTH0_ISSUER_BASE_URL is https://<tenant>.auth0.com. AUTH0_BASE_URL is http://localhost:3000."
+    },
+    {
+      "id": "US-002",
+      "title": "Wire Auth0 middleware into Express and protect all routes",
+      "description": "As a developer, I need the Auth0 express-openid-connect middleware mounted so that unauthenticated users are redirected to Auth0 Universal Login before they can access the dashboard or any API endpoint.",
+      "acceptanceCriteria": [
+        "Import `auth` and `requiresAuth` from `express-openid-connect` in server.ts",
+        "Mount `app.use(auth({ authRequired: false, auth0Logout: true, secret: process.env.AUTH0_SECRET, baseURL: process.env.AUTH0_BASE_URL, clientID: process.env.AUTH0_CLIENT_ID, issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL, clientSecret: process.env.AUTH0_CLIENT_SECRET, authorizationParams: { response_type: 'code', scope: 'openid profile email' } }))` before all other middleware",
+        "The static file serving route for the dashboard (`/`) is protected with `requiresAuth()` so unauthenticated GET / returns a redirect to Auth0 login",
+        "`requiresAuth()` is applied to GET /api/stream, POST /api/override, DELETE /api/guidelines/:id",
+        "Add GET /api/me endpoint (protected with requiresAuth) that returns `{ name, email, picture }` from `req.oidc.user`",
+        "Remove the `// @ts-nocheck` pattern if present; add `@types/express-openid-connect` if needed for type safety",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "express-openid-connect automatically handles GET /login, GET /callback, GET /logout routes. Do not define these manually. authRequired: false lets the middleware run globally without forcing login on static assets — requiresAuth() is applied per-route instead."
+    },
+    {
+      "id": "US-003",
+      "title": "Remove fake Okta auth from frontend and call /api/me for user profile",
+      "description": "As a homeowner, I want to see my Google profile picture and name in the dashboard header after signing in, and I do not want a fake login screen blocking the real one.",
+      "acceptanceCriteria": [
+        "Delete `public/auth.js`",
+        "In `public/index.html`: remove the auth overlay `<div id='auth-overlay'>` block entirely",
+        "In `public/index.html`: remove the Okta CDN `<script>` tag and the `<script src='/auth.js'>` tag",
+        "In `public/index.html`: remove `style='display: none;'` from the `<div class='app-container'>` so it is visible immediately (server guards it)",
+        "In `public/app.js`: remove the `window.startApp = startApp` line and the `startApp` function wrapper — the DOMContentLoaded listener calls `startApp()` directly",
+        "In `public/app.js`: on DOMContentLoaded, fetch `/api/me` and insert the returned `name` and `picture` (as an `<img>` element) into a `<div id='user-profile'>` in the header",
+        "In `public/index.html`: add `<div id='user-profile'></div>` inside the `.stream-data` div, before the logout button",
+        "In `public/style.css`: add styles for `#user-profile` (flex row, avatar img 32px circle, name text in var(--text-secondary))",
+        "The logout button `href` is set to `/logout` (the Auth0 logout route) so clicking it ends the server session and redirects to Auth0 logout",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "The server now controls auth. The frontend never manages tokens or sessions. /api/me is always available to authenticated users since the server session is validated server-side."
+    },
+    {
+      "id": "US-004",
+      "title": "Write server-side integration tests for auth-protected routes",
+      "description": "As a developer, I need automated tests that confirm unauthenticated requests are rejected and authenticated requests succeed, so regressions are caught without manual browser testing.",
+      "acceptanceCriteria": [
+        "Create `src/server.test.ts` using Jest and supertest (`npm install --save-dev supertest @types/supertest --legacy-peer-deps`)",
+        "Test: GET / without a session cookie returns HTTP 302 with Location header pointing to Auth0 login",
+        "Test: GET /api/stream without session returns HTTP 302 (or 401)",
+        "Test: POST /api/override without session returns HTTP 302 (or 401)",
+        "Test: GET /api/me without session returns HTTP 302 (or 401)",
+        "Tests mock or bypass the Auth0 OIDC discovery by setting NODE_ENV=test and short-circuiting the auth middleware (inject a fake `req.oidc` object via a test helper or use `jest.mock`)",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Use supertest to make HTTP requests against the Express app without starting a real server. For testing authenticated routes, inject req.oidc = { isAuthenticated: () => true, user: { name: 'Test', email: 'test@example.com', picture: '' } } via middleware override in test setup."
+    }
+  ]
+}

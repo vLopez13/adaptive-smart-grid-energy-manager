@@ -12,6 +12,195 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Track the action currently shown so Override sends the right action to the server.
     let currentActionName = null;
 
+    // ====== US-003/US-004: Learning Section & Decision Tree Preview ======
+    let selectedRules = new Map(); // ruleText -> isSelected
+    let lastStreamData = { clock: '08:00', gridPrice: 0.25, weatherTemperature: 70 };
+
+    // Generate rule suggestions for the current action
+    function generateRuleSuggestions(action, price, clock, temp) {
+        const suggestions = [];
+
+        // Price suggestions (current ±5%, ±10%, ±20%)
+        suggestions.push({
+            displayText: `Block when price > $${(price * 1.05).toFixed(3)}/kWh (+5%)`,
+            ruleText: `Do not ${action} when Grid_Price >= ${(price * 1.05).toFixed(2)}`
+        });
+        suggestions.push({
+            displayText: `Block when price > $${(price * 1.10).toFixed(3)}/kWh (+10%)`,
+            ruleText: `Do not ${action} when Grid_Price >= ${(price * 1.10).toFixed(2)}`
+        });
+        suggestions.push({
+            displayText: `Block when price > $${(price * 1.20).toFixed(3)}/kWh (+20%)`,
+            ruleText: `Do not ${action} when Grid_Price >= ${(price * 1.20).toFixed(2)}`
+        });
+
+        // Peak hours suggestion (17-21)
+        const hour = parseInt(clock.split(':')[0]);
+        if (hour >= 17 && hour <= 21) {
+            suggestions.push({
+                displayText: `Block during peak hours (17:00-21:59)`,
+                ruleText: `Do not ${action} when Clock_Hour >= 17`
+            });
+        }
+
+        // Temperature suggestions
+        if (temp > 85) {
+            suggestions.push({
+                displayText: `Block when temperature > ${(temp + 5).toFixed(1)}°F (+5°)`,
+                ruleText: `Do not ${action} when Temperature >= ${Math.round(temp + 5)}`
+            });
+        } else if (temp < 50) {
+            suggestions.push({
+                displayText: `Block when temperature < ${(temp - 5).toFixed(1)}°F (-5°)`,
+                ruleText: `Do not ${action} when Temperature <= ${Math.round(temp - 5)}`
+            });
+        }
+
+        // Always include "Block this action always" option
+        suggestions.push({
+            displayText: `Block this action always`,
+            ruleText: `Do not ${action} when Grid_Price >= 0.00`
+        });
+
+        return suggestions.slice(0, 5);
+    }
+
+    function setupLearningSection(actionName) {
+        if (!actionName) return;
+
+        const learningToggleBtn = document.getElementById("learning-toggle-btn");
+        const learningSection = document.getElementById("learning-section");
+        const ruleCheckboxesContainer = document.getElementById("rule-checkboxes-container");
+
+        if (!learningToggleBtn || !learningSection || !ruleCheckboxesContainer) return;
+
+        // Reset selected rules
+        selectedRules.clear();
+
+        // Generate rule suggestions
+        const suggestions = generateRuleSuggestions(
+            actionName,
+            lastStreamData.gridPrice,
+            lastStreamData.clock,
+            lastStreamData.weatherTemperature
+        );
+
+        // Populate checkboxes
+        ruleCheckboxesContainer.innerHTML = suggestions.map((sug, idx) => `
+            <div class="rule-checkbox-wrapper">
+                <input type="checkbox" class="rule-checkbox" id="rule-${idx}" data-rule-text="${sug.ruleText}">
+                <label for="rule-${idx}">${sug.displayText}</label>
+            </div>
+        `).join('');
+
+        // Add change listeners
+        document.querySelectorAll('.rule-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const ruleText = checkbox.dataset.ruleText;
+                if (checkbox.checked) {
+                    selectedRules.set(ruleText, true);
+                } else {
+                    selectedRules.delete(ruleText);
+                }
+                updateDecisionTreePreview();
+            });
+        });
+
+        // Setup toggle button once
+        if (!learningToggleBtn.hasListener) {
+            learningToggleBtn.addEventListener('click', () => {
+                learningSection.classList.toggle('collapsed');
+                const icon = learningToggleBtn.querySelector('.toggle-icon');
+                icon.style.transform = learningSection.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(180deg)';
+            });
+            learningToggleBtn.hasListener = true;
+        }
+    }
+
+    async function updateDecisionTreePreview() {
+        const decisionTreePreview = document.getElementById("decision-tree-preview");
+        const previewContent = decisionTreePreview.querySelector('.preview-content');
+
+        if (selectedRules.size === 0) {
+            decisionTreePreview.classList.add('hidden');
+            return;
+        }
+
+        // Show loading state
+        decisionTreePreview.classList.remove('hidden');
+        previewContent.innerHTML = '<p style="color: var(--text-secondary);">Loading preview...</p>';
+
+        try {
+            const response = await fetch('/api/preview-decision-with-rule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ruleTexts: Array.from(selectedRules.keys())
+                }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                previewContent.innerHTML = `<p style="color: var(--accent-red);">Error: ${error.errorMessage || 'Failed to preview'}</p>`;
+                return;
+            }
+
+            const preview = await response.json();
+            let html = '';
+
+            // Show applied rules summary
+            if (selectedRules.size > 0) {
+                html += '<div class="preview-section">';
+                html += '<span class="preview-label">Applying ' + selectedRules.size + ' rule(s):</span>';
+                for (const rule of selectedRules.keys()) {
+                    html += `<div style="font-size: 0.85rem; margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border-radius: 4px; color: var(--text-secondary);">"${rule}"</div>`;
+                }
+                html += '</div>';
+            }
+
+            // Show blocked action
+            if (preview.blockedAction) {
+                html += '<div class="preview-section">';
+                html += `<div class="blocked-action"><span class="mark">✗</span> <span><strong>Blocked:</strong> ${preview.blockedAction.replace(/_/g, ' ')}</span></div>`;
+                html += '</div>';
+            }
+
+            // Handle gridlock
+            if (preview.gridlocked) {
+                html += '<div class="preview-section">';
+                html += `<div class="gridlock-warning"><div class="gridlock-warning-icon">⚠️</div><div class="gridlock-warning-text"><div class="gridlock-warning-title">All Actions Blocked!</div><div class="gridlock-warning-desc">This rule blocks all actions. Agent will default to STORE_IN_BATTERY.</div></div></div>`;
+                html += '</div>';
+            } else if (preview.nextAction) {
+                // Show next action
+                html += '<div class="preview-section">';
+                html += `<div class="next-action"><span class="mark">✓</span> <span><strong>Agent picks:</strong> ${preview.nextAction.replace(/_/g, ' ')}</span><span class="urgency-badge">urgency ${preview.nextActionUrgency}/10</span></div>`;
+                if (preview.nextActionReason) {
+                    html += `<div class="action-details">${preview.nextActionReason}</div>`;
+                }
+                html += '</div>';
+
+                // Show alternatives
+                if (preview.alternatives && preview.alternatives.length > 0) {
+                    html += '<div class="preview-section">';
+                    html += '<span class="preview-label">Alternatives:</span>';
+                    html += '<ul class="alternatives-list">';
+                    for (const alt of preview.alternatives.slice(0, 2)) {
+                        html += `<li class="alternative-item"><span class="alternative-action">${alt.action.replace(/_/g, ' ')}</span><span class="urgency-badge">urgency ${alt.urgency}/10</span><div style="font-size: 0.8rem; margin-top: 0.25rem; color: var(--text-secondary);">${alt.reason}</div></li>`;
+                    }
+                    html += '</ul>';
+                    html += '</div>';
+                }
+            }
+
+            previewContent.innerHTML = html;
+        } catch (err) {
+            console.error('Preview error:', err);
+            previewContent.innerHTML = `<p style="color: var(--accent-red);">Error loading preview</p>`;
+        }
+    }
+
+
+
     // State for learning and rule selection
     let selectedRules = [];
     let isPaused = false;
@@ -73,6 +262,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     function handleStreamEvent(payload) {
         switch (payload.type) {
             case "init":
+                if (payload.lastClock) lastStreamData.clock = payload.lastClock;
+                if (payload.lastPrice !== undefined) lastStreamData.gridPrice = payload.lastPrice;
+                if (payload.lastTemp !== undefined) lastStreamData.weatherTemperature = payload.lastTemp;
                 if (payload.latestAction) {
                     renderLatestAction(payload.latestAction);
                     updateEnergyFlow(payload.latestAction.action);
@@ -86,6 +278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 break;
             case "clock":
                 clockDisplay.innerText = payload.data;
+                lastStreamData.clock = payload.data;
                 clearStaleWarning("clock");
                 break;
             case "grid_price":
@@ -144,6 +337,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateTemp(val) {
         tempDisplay.innerText = `${val.toFixed(1)}°F`;
+        lastStreamData.weatherTemperature = val;
         if (val > 85) tempDisplay.style.color = 'var(--accent-red)';
         else if (val < 50) tempDisplay.style.color = 'var(--accent-blue)';
         else tempDisplay.style.color = 'var(--text-primary)';
@@ -173,6 +367,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
         `;
         document.getElementById("override-btn").addEventListener("click", triggerOverride);
+        setupLearningSection(actionItem.action);
     }
 
     function clearActionPanel() {
