@@ -68,9 +68,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     function setupLearningSection(actionName) {
         if (!actionName) return;
 
-        const learningToggleBtn = document.getElementById("learning-toggle-btn");
-        const learningSection = document.getElementById("learning-section");
-        const ruleCheckboxesContainer = document.getElementById("rule-checkboxes-container");
+        let learningToggleBtn = document.getElementById("learning-toggle-btn");
+        let learningSection = document.getElementById("learning-section");
+        let ruleCheckboxesContainer = document.getElementById("rule-checkboxes-container");
+
+        // Create elements dynamically if they don't exist
+        if (!learningSection) {
+            const mainActionPanel = latestActionContainer.parentElement;
+            learningSection = document.createElement('div');
+            learningSection.id = 'learning-section';
+            learningSection.className = 'glass-panel';
+            learningSection.style.marginTop = '1rem';
+            mainActionPanel.appendChild(learningSection);
+        }
+
+        if (!learningToggleBtn || !ruleCheckboxesContainer) {
+            learningSection.innerHTML = `
+                <button id="learning-toggle-btn" class="learn-toggle-btn" style="width: 100%; text-align: left; padding: 0.75rem 1rem; margin-bottom: 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s ease;">
+                    <span>Expand Learning Options</span>
+                    <span class="toggle-icon" style="display: inline-block; transition: transform 0.3s ease; font-size: 1.2rem;">▼</span>
+                </button>
+                <div id="rule-checkboxes-container" class="rule-checkboxes-container" style="display: none; margin-bottom: 1rem;">
+                </div>
+                <div id="decision-tree-preview" class="decision-tree-preview hidden" style="margin-top: 1rem;">
+                    <div class="preview-content"></div>
+                </div>
+                <div id="confirm-buttons" class="confirm-buttons" style="display: none; gap: 0.75rem; margin-top: 1rem; flex-direction: row; justify-content: flex-start;">
+                    <button id="confirm-apply-btn" class="primary-btn" style="margin-top: 0; flex: 0 0 auto; padding: 0.7rem 1.5rem;">Confirm & Apply</button>
+                    <button id="cancel-learn-btn" style="padding: 0.7rem 1.5rem; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s ease; font-size: 0.95rem;" onmouseover="this.style.background='rgba(255, 255, 255, 0.08)'; this.style.color='var(--text-primary)';" onmouseout="this.style.background='rgba(255, 255, 255, 0.05)'; this.style.color='var(--text-secondary)';">Cancel</button>
+                </div>
+            `;
+            learningToggleBtn = document.getElementById("learning-toggle-btn");
+            ruleCheckboxesContainer = document.getElementById("rule-checkboxes-container");
+        }
 
         if (!learningToggleBtn || !learningSection || !ruleCheckboxesContainer) return;
 
@@ -109,25 +139,61 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Setup toggle button once
         if (!learningToggleBtn.hasListener) {
             learningToggleBtn.addEventListener('click', () => {
-                learningSection.classList.toggle('collapsed');
+                const checkboxContainer = document.getElementById('rule-checkboxes-container');
+                const previewDiv = document.getElementById('decision-tree-preview');
+                const confirmButtonsDiv = document.getElementById('confirm-buttons');
                 const icon = learningToggleBtn.querySelector('.toggle-icon');
-                icon.style.transform = learningSection.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(180deg)';
+
+                const isExpanded = checkboxContainer.style.display === 'block';
+
+                if (isExpanded) {
+                    // Collapse
+                    checkboxContainer.style.display = 'none';
+                    previewDiv.style.display = 'none';
+                    confirmButtonsDiv.style.display = 'none';
+                    icon.style.transform = 'rotate(0deg)';
+                } else {
+                    // Expand
+                    checkboxContainer.style.display = 'block';
+                    if (selectedRules.size > 0) {
+                        previewDiv.style.display = 'block';
+                        confirmButtonsDiv.style.display = 'flex';
+                    }
+                    icon.style.transform = 'rotate(180deg)';
+                }
             });
             learningToggleBtn.hasListener = true;
+        }
+
+        // Setup confirm/cancel buttons
+        const confirmBtn = document.getElementById('confirm-apply-btn');
+        const cancelBtn = document.getElementById('cancel-learn-btn');
+
+        if (confirmBtn && !confirmBtn.hasListener) {
+            confirmBtn.addEventListener('click', confirmAndApply);
+            confirmBtn.hasListener = true;
+        }
+
+        if (cancelBtn && !cancelBtn.hasListener) {
+            cancelBtn.addEventListener('click', cancelRules);
+            cancelBtn.hasListener = true;
         }
     }
 
     async function updateDecisionTreePreview() {
         const decisionTreePreview = document.getElementById("decision-tree-preview");
+        const confirmButtons = document.getElementById("confirm-buttons");
         const previewContent = decisionTreePreview.querySelector('.preview-content');
 
         if (selectedRules.size === 0) {
             decisionTreePreview.classList.add('hidden');
+            if (confirmButtons) confirmButtons.style.display = 'none';
             return;
         }
 
         // Show loading state
         decisionTreePreview.classList.remove('hidden');
+        if (confirmButtons) confirmButtons.style.display = 'flex';
         previewContent.innerHTML = '<p style="color: var(--text-secondary);">Loading preview...</p>';
 
         try {
@@ -201,8 +267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 
-    // State for learning and rule selection
-    let selectedRules = [];
+    // State for pause/resume
     let isPaused = false;
     let pausedUntil = null;
     let pauseCountdownInterval = null;
@@ -718,11 +783,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (learningSection) {
             learningSection.remove();
         }
-        selectedRules = [];
+        selectedRules.clear();
     }
 
     async function confirmAndApply() {
-        if (selectedRules.length === 0) {
+        if (selectedRules.size === 0) {
             alert('Please select at least one rule to apply.');
             return;
         }
@@ -732,17 +797,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         confirmBtn.innerText = 'Applying...';
 
         try {
-            await fetch('/api/override', {
+            // Send selected rules to server for persistence
+            const ruleTexts = Array.from(selectedRules.keys());
+            await fetch('/api/apply-rules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: currentActionName }),
+                body: JSON.stringify({ ruleTexts }),
             });
 
-            const ruleCount = selectedRules.length;
+            const ruleCount = selectedRules.size;
             rulesApplied = true;
 
             showSuccessFeedback(ruleCount);
 
+            // Resume decision cycle after applying rules
             await fetch('/api/resume', { method: 'POST' });
 
             clearLearningSection();
@@ -754,10 +822,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function cancelRules() {
-        selectedRules = [];
+        selectedRules.clear();
         const learningSection = document.getElementById('learning-section');
         if (learningSection) {
-            renderLearningSection(learningSection);
+            learningSection.style.display = 'none';
         }
     }
 
