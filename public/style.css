@@ -437,23 +437,13 @@ td .history-action {
     align-items: center;
 }
 
-.learning-toggle-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 1rem;
-    padding: 0.25rem 0.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: color 0.2s, transform 0.3s ease;
+.learn-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.15);
 }
 
-.learning-toggle-btn:hover { color: var(--text-primary); }
-
-.learning-toggle-btn .toggle-icon {
-    display: inline-block;
+.learn-toggle-btn .toggle-icon {
     transition: transform 0.3s ease;
 }
 
