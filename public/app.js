@@ -200,9 +200,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
 
-
     // State for learning and rule selection
-    let selectedRules = [];
+    // (selectedRules already declared at top as new Map())
     let isPaused = false;
     let pausedUntil = null;
     let pauseCountdownInterval = null;
