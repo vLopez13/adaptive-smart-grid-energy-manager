@@ -391,6 +391,27 @@ td .history-action {
     cursor: pointer;
 }
 
+.secondary-btn.pause {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: var(--accent-blue);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.secondary-btn.pause:hover {
+    background: rgba(56, 189, 248, 0.2);
+    border-color: var(--accent-blue);
+}
+
+.secondary-btn.pause:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* ====== Energy Flow Visualizer ====== */
 .energy-flow-panel {
     grid-column: span 2;
