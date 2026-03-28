@@ -292,3 +292,65 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 });
+
+    // ====== Pause/Resume functionality (Req US-001) ======
+    function updatePauseUI() {
+        if (isPaused && pausedUntil) {
+            showPauseOverlay(pausedUntil);
+        } else {
+            hidePauseOverlay();
+        }
+    }
+
+    function showPauseOverlay(remainingMs) {
+        let overlay = document.getElementById('pause-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'pause-overlay';
+            overlay.className = 'pause-overlay';
+            document.body.appendChild(overlay);
+        }
+
+        const existingBtn = document.getElementById('resume-btn');
+        if (!existingBtn) {
+            overlay.innerHTML = `
+                <div class="pause-content">
+                    <div class="pause-icon">⏸</div>
+                    <p class="pause-text">Paused</p>
+                    <p class="pause-countdown" id="pause-countdown">resumes in 30s</p>
+                    <button class="primary-btn" id="resume-btn">Resume</button>
+                </div>
+            `;
+            document.getElementById('resume-btn').addEventListener('click', async () => {
+                await fetch('/api/resume', { method: 'POST' });
+            });
+        }
+
+        if (pauseCountdownInterval) clearInterval(pauseCountdownInterval);
+        let remaining = remainingMs;
+        pauseCountdownInterval = setInterval(() => {
+            remaining -= 1000;
+            const seconds = Math.ceil(remaining / 1000);
+            if (seconds <= 0) {
+                clearInterval(pauseCountdownInterval);
+            } else {
+                const countdown = document.getElementById('pause-countdown');
+                if (countdown) {
+                    countdown.textContent = `resumes in ${seconds}s`;
+                }
+            }
+        }, 1000);
+
+        overlay.style.display = 'flex';
+    }
+
+    function hidePauseOverlay() {
+        const overlay = document.getElementById('pause-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+        if (pauseCountdownInterval) {
+            clearInterval(pauseCountdownInterval);
+            pauseCountdownInterval = null;
+        }
+    }

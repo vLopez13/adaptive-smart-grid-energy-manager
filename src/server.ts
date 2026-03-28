@@ -58,6 +58,7 @@ let lastTemp = 0;
 let lastClock = '08:00';
 let guidelines: Guideline[] = [];
 let preferencesUnavailable = false;
+let pausedUntil: number | null = null; // timestamp (ms) when pause expires, null if not paused
 
 interface ActionItem {
     action: string;
@@ -98,6 +99,17 @@ simulator.on('weather_temperature', (val: number) => {
 // Tick event — run agent decision cycle (Req 2)
 simulator.on('tick', async (tick: TickPayload) => {
     try {
+        // Check if paused and auto-resume if countdown expired (Req US-001)
+        if (pausedUntil !== null && Date.now() >= pausedUntil) {
+            pausedUntil = null;
+            streamBus.emit('event', { type: 'pause_toggled', data: { paused: false, remainingMs: 0 } });
+        }
+
+        // Skip decision cycle if paused (Req US-001)
+        if (pausedUntil !== null && Date.now() < pausedUntil) {
+            return;
+        }
+
         const { row: external } = await fetchLatestExternalContextSafe(pgCtx.pool);
         agent.setGuidelines(toPreferenceGuidelines(guidelines));
 
@@ -174,6 +186,20 @@ setInterval(() => {
     }
 }, 500);
 
+// Pause countdown broadcast (Req US-001)
+setInterval(() => {
+    const now = Date.now();
+    if (pausedUntil !== null) {
+        if (now >= pausedUntil) {
+            pausedUntil = null;
+            streamBus.emit('event', { type: 'pause_toggled', data: { paused: false, remainingMs: 0 } });
+        } else {
+            const remainingMs = pausedUntil - now;
+            streamBus.emit('event', { type: 'pause_toggled', data: { paused: true, remainingMs } });
+        }
+    }
+}, 1000);
+
 // ====== AUTH ENDPOINTS ======
 app.get('/api/me', requiresAuth(), (req: Request, res: Response) => {
     res.json(req.oidc.user);
@@ -185,6 +211,7 @@ app.get('/api/stream', requiresAuth(), (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    const remainingMs = pausedUntil !== null ? Math.max(0, pausedUntil - Date.now()) : 0;
     res.write(`data: ${JSON.stringify({
         type: 'init',
         latestAction,
@@ -194,6 +221,8 @@ app.get('/api/stream', requiresAuth(), (req: Request, res: Response) => {
         lastPrice,
         lastTemp,
         preferencesUnavailable,
+        paused: pausedUntil !== null && pausedUntil > Date.now(),
+        remainingMs,
     })}\n\n`);
 
     const onEvent = (eventData: unknown) => {
@@ -237,6 +266,21 @@ app.delete('/api/guidelines/:id', requiresAuth(), async (req: Request<{ id: stri
     guidelines = guidelines.filter((g) => g.id !== req.params.id);
     streamBus.emit('event', { type: 'guidelines_updated', data: guidelines });
     res.json({ success: true });
+});
+
+// Pause decision cycle for 30 seconds (Req US-001)
+app.post('/api/pause', requiresAuth(), (req: Request, res: Response) => {
+    const PAUSE_DURATION_MS = 30000; // 30 seconds
+    pausedUntil = Date.now() + PAUSE_DURATION_MS;
+    streamBus.emit('event', { type: 'pause_toggled', data: { paused: true, remainingMs: PAUSE_DURATION_MS } });
+    res.json({ success: true, pausedUntil, remainingMs: PAUSE_DURATION_MS });
+});
+
+// Resume decision cycle immediately (Req US-001)
+app.post('/api/resume', requiresAuth(), (req: Request, res: Response) => {
+    pausedUntil = null;
+    streamBus.emit('event', { type: 'pause_toggled', data: { paused: false, remainingMs: 0 } });
+    res.json({ success: true, paused: false });
 });
 
 const PORT = process.env.PORT ?? 3000;
