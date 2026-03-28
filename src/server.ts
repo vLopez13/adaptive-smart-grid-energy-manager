@@ -6,10 +6,11 @@ import { auth, requiresAuth } from 'express-openid-connect';
 import { DataStreamSimulator, type TickPayload } from './simulator/DataStreamSimulator';
 import { GuidelinesStore, type Guideline } from './store/GuidelinesStore';
 import { EnergyAgent } from './agent/EnergyAgent';
-import { toPreferenceGuidelines } from './agent/guidelineAdapter';
+import { toPreferenceGuidelines, toPreferenceGuideline } from './agent/guidelineAdapter';
+import { listProposalsInOrder } from './agent/decisionPolicy';
 import { resolvePostgresContextConfig, fetchLatestExternalContextSafe } from './context/postgresPublicTest';
 import { EventEmitter } from 'events';
-import type { Action } from './types/energy';
+import type { Action, DecisionContext } from './types/energy';
 import { ActionLogger } from './store/ActionLogger';
 import { ErrorLogger } from './store/ErrorLogger';
 import { randomUUID } from 'crypto';
@@ -281,6 +282,122 @@ app.post('/api/resume', requiresAuth(), (req: Request, res: Response) => {
     pausedUntil = null;
     streamBus.emit('event', { type: 'pause_toggled', data: { paused: false, remainingMs: 0 } });
     res.json({ success: true, paused: false });
+});
+
+// Preview what the agent will decide if a rule is applied (Req US-002)
+interface PreviewDecisionResponse {
+    blockedAction: string;
+    topAlternatives: Array<{ action: string; reason: string; urgency: number }>;
+    allBlocked?: boolean;
+    warning?: string;
+    error?: string;
+}
+
+function calculateUrgencyScore(action: string, ctx: DecisionContext): number {
+    // Simple heuristic: higher score = more urgent
+    // Based on decision policy principles
+    const { clock, gridPrice, weatherTemperature: temp } = ctx.simulator;
+    const hour = parseInt(clock.split(':')[0] ?? '0', 10);
+
+    switch (action) {
+        case 'SHUT_OFF_AC':
+            return temp >= 82 ? 8 : temp >= 75 ? 5 : 2;
+        case 'RESTORE_AC':
+            return temp <= 48 ? 8 : temp <= 55 ? 5 : 2;
+        case 'SELL_TO_GRID':
+            return gridPrice >= 0.35 ? 8 : gridPrice >= 0.25 ? 5 : 2;
+        case 'BUY_FROM_GRID':
+            return gridPrice <= 0.10 ? 8 : gridPrice <= 0.15 ? 5 : 2;
+        case 'CHARGE_EV_NOW':
+            return gridPrice <= 0.10 ? 8 : gridPrice <= 0.15 ? 5 : (hour >= 23 || hour <= 5) ? 4 : 2;
+        case 'PAUSE_EV_CHARGING':
+            return gridPrice >= 0.35 ? 8 : temp >= 82 ? 5 : 2;
+        case 'STORE_IN_BATTERY':
+            return (hour >= 17 && hour <= 21) ? 6 : gridPrice >= 0.30 ? 5 : 3;
+        case 'DISCHARGE_BATTERY':
+            return (hour >= 17 && hour <= 21) ? 7 : gridPrice >= 0.35 ? 6 : 2;
+        default:
+            return 0;
+    }
+}
+
+app.post('/api/preview-decision-with-rule', requiresAuth(), async (req: Request<object, object, { ruleText?: string }>, res: Response) => {
+    try {
+        const { ruleText } = req.body;
+
+        if (!ruleText || typeof ruleText !== 'string') {
+            return res.status(400).json({
+                blockedAction: '',
+                topAlternatives: [],
+                error: 'Missing or invalid ruleText parameter',
+            } as PreviewDecisionResponse);
+        }
+
+        // Parse and validate rule text using guidelineAdapter
+        const tempGuideline: Guideline = {
+            id: 'temp-preview-' + randomUUID(),
+            text: ruleText.trim(),
+            createdAt: new Date().toISOString(),
+            timesApplied: 0,
+        };
+
+        const preferenceGuideline = toPreferenceGuideline(tempGuideline);
+        if (!preferenceGuideline) {
+            return res.status(400).json({
+                blockedAction: '',
+                topAlternatives: [],
+                error: 'Rule text does not match expected format: "Do not {ACTION} when {FIELD} {OP} {VALUE}"',
+            } as PreviewDecisionResponse);
+        }
+
+        // Create decision context with current stream data
+        const ctx: DecisionContext = {
+            simulator: {
+                clock: lastClock,
+                gridPrice: lastPrice,
+                weatherTemperature: lastTemp,
+            },
+            external: null,
+        };
+
+        // Get all possible proposals in order of urgency
+        const allProposals = listProposalsInOrder(ctx);
+
+        // Find which action is blocked by the new rule
+        const blockedByRule = preferenceGuideline.excludedAction;
+
+        // Get top 3 allowed alternatives (excluding the blocked action)
+        const topAlternatives = allProposals
+            .filter((p) => p.action !== blockedByRule)
+            .slice(0, 3)
+            .map((p) => ({
+                action: p.action,
+                reason: p.reasonDetail,
+                urgency: calculateUrgencyScore(p.action, ctx),
+            }));
+
+        // Check if all actions are blocked
+        const allBlocked = topAlternatives.length === 0;
+
+        const response: PreviewDecisionResponse = {
+            blockedAction: blockedByRule,
+            topAlternatives,
+            ...(allBlocked && {
+                allBlocked: true,
+                warning: 'This rule blocks all actions. Agent will default to STORE_IN_BATTERY.',
+            }),
+        };
+
+        res.json(response);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[Preview] Error:', message);
+        res.status(500).json({
+            blockedAction: '',
+            topAlternatives: [],
+            error: `Internal error: ${message}`,
+        } as PreviewDecisionResponse);
+    }
 });
 
 const PORT = process.env.PORT ?? 3000;
