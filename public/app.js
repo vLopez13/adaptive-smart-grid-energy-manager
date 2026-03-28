@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         latestActionContainer.innerHTML = `
             <div class="action-header">
                 <span class="action-name ${actionSlug}">${actionItem.action.replace(/_/g, ' ')}</span>
-                <button class="override-btn" id="override-btn">Override</button>
+                <button class="override-btn" id="override-btn" title="Cancel this action and teach the agent not to do it again">Reject Action & Teach</button>
             </div>
             <div class="action-reason">
                 <strong>Reasoning:</strong> ${actionItem.reason}
@@ -144,12 +144,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function showOverrideConfirmation() {
-        latestActionContainer.className = "waiting-state";
+        latestActionContainer.className = "waiting-state override-success-state";
         latestActionContainer.innerHTML = `
-            <div class="pulse-ring"></div>
-            <p id="action-status-text">Override received — action cancelled</p>
+            <div class="success-icon">✓</div>
+            <div class="status-content">
+                <p id="action-status-text" style="color: var(--accent-green); font-weight: 600; margin-bottom: 0.25rem;">Action Rejected</p>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">The agent learned your preference and added a new guideline.</p>
+            </div>
         `;
-        setTimeout(() => clearActionPanel(), 3000);
+        setTimeout(() => clearActionPanel(), 4000);
     }
 
     function renderGuidelines(guidelines) {
@@ -240,7 +243,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.querySelector(".app-container").prepend(banner);
     }
 
-    async function triggerOverride() {
+    async function triggerOverride(event) {
+        const btn = event.currentTarget;
+        btn.disabled = true;
+        btn.innerText = 'Teaching Agent...';
         try {
             await fetch('/api/override', {
                 method: 'POST',
@@ -250,6 +256,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 body: JSON.stringify({ action: currentActionName }),
             });
         } catch (err) {
+            btn.disabled = false;
+            btn.innerText = 'Reject Action & Teach';
             console.error(err);
         }
     }

@@ -172,6 +172,31 @@ h2 {
     100% { transform: rotate(360deg); }
 }
 
+/* Override Success State */
+.override-success-state {
+    align-items: flex-start;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.success-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 28px;
+    height: 28px;
+    background-color: rgba(52, 211, 153, 0.2);
+    color: var(--accent-green);
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.status-content {
+    display: flex;
+    flex-direction: column;
+}
+
 /* Action Display */
 .action-box {
     display: flex;

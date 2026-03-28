@@ -41,8 +41,8 @@ app.use(express.static(join(__dirname, '../public')));
 app.use(express.json());
 
 const simulator = new DataStreamSimulator({
-    updateIntervalMs: 1000,
-    timeSpeedMinutesPerUpdate: 15,
+    updateIntervalMs: 3500,
+    timeSpeedMinutesPerUpdate: 5,
     startClock: '08:00',
 });
 
@@ -159,11 +159,11 @@ simulator.on('tick', async (tick: TickPayload) => {
 setInterval(() => {
     const now = Date.now();
     for (const stream of Object.keys(lastUpdated)) {
-        if (lastUpdated[stream] > 0 && now - lastUpdated[stream] > 5000) {
+        if (lastUpdated[stream] > 0 && now - lastUpdated[stream] > 12000) {
             streamBus.emit('event', { type: 'stale_data', stream });
         }
     }
-}, 2000);
+}, 3000);
 
 // Decision timeout check (Req 6.6)
 setInterval(() => {

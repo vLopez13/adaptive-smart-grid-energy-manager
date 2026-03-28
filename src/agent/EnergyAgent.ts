@@ -27,7 +27,8 @@ export class EnergyAgent {
     decide(context: DecisionContext): AgentDecision {
         this.lastAppliedGuidelineIds = [];
         try {
-            for (const proposal of listProposalsInOrder(context)) {
+            const proposals = listProposalsInOrder(context);
+            for (const proposal of proposals) {
                 const blockingIds = findBlockingGuidelineIds(proposal.action, context, this.guidelines);
                 if (blockingIds.length === 0) {
                     return proposal;
@@ -38,11 +39,29 @@ export class EnergyAgent {
                     }
                 }
             }
+
+            // All ranked proposals were blocked. Find ANY action that's allowed.
+            const blockedActions = proposals.map(p => p.action);
+            const allPossibleActions: Action[] = [
+                'STORE_IN_BATTERY', 'RESTORE_AC', 'PAUSE_EV_CHARGING', 'DISCHARGE_BATTERY',
+                'BUY_FROM_GRID', 'CHARGE_EV_NOW', 'SELL_TO_GRID', 'SHUT_OFF_AC'
+            ];
+            for (const a of allPossibleActions) {
+                if (blockedActions.includes(a)) continue;
+                const blockingIds = findBlockingGuidelineIds(a, context, this.guidelines);
+                if (blockingIds.length === 0) {
+                    return {
+                        action: a,
+                        primaryReason: 'Grid_Price',
+                        reasonDetail: 'High-urgency proposals were blocked; choosing lowest-impact allowed action.'
+                    };
+                }
+            }
+
             return {
                 action: 'STORE_IN_BATTERY',
                 primaryReason: 'Grid_Price',
-                reasonDetail:
-                    'All ranked proposals were blocked by preference guidelines; using storage default.',
+                reasonDetail: 'All possible actions are blocked by current guidelines; using hard fallback.',
             };
         } catch {
             return {
